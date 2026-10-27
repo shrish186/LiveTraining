@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from typing import Any, Iterable, TextIO
 
 HEADER = ["t_ms", "source", "kind", "x", "y", "z", "value"]
-SOURCES = {"phone", "whoop_hr", "movesense", "xiao", "polar"}
+SOURCES = {"phone", "whoop_hr", "apple_watch", "movesense", "xiao", "polar"}
 KINDS = {"acc", "gyro", "hr", "rr", "event"}
 VECTOR_KINDS = {"acc", "gyro"}
 SCALAR_KINDS = {"hr", "rr"}

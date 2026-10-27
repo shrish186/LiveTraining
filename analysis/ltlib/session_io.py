@@ -34,9 +34,23 @@ def motion_rows(df: pd.DataFrame, kind: str = "acc", source: str | None = None) 
                          "y": rows["y"].to_numpy(dtype=float), "z": rows["z"].to_numpy(dtype=float)})
 
 
-def scalar_rows(df: pd.DataFrame, kind: str) -> pd.DataFrame:
+def scalar_rows(df: pd.DataFrame, kind: str, source: str | None = None) -> pd.DataFrame:
     rows = df[df["kind"] == kind]
+    if source:
+        rows = rows[rows["source"] == source]
     return pd.DataFrame({"t_s": rows["t_ms"].to_numpy() / 1000.0, "value": rows["value"].astype(float).to_numpy()})
+
+
+def pick_source(df: pd.DataFrame, kind: str, preferred: str | None = None,
+                avoid: tuple[str, ...] = ()) -> str | None:
+    """Which source to use for `kind`: `preferred` if present, else the first source not in `avoid`,
+    else any. A device-level choice (body-worn over phone, chest/strap over watch), not a sport one."""
+    sources = list(dict.fromkeys(df.loc[df["kind"] == kind, "source"]))
+    if not sources:
+        return None
+    if preferred in sources:
+        return preferred
+    return next((s for s in sources if s not in avoid), sources[0])
 
 
 def event_rows(df: pd.DataFrame) -> list[tuple[float, str]]:

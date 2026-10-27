@@ -102,6 +102,8 @@ def test_effort_params_placement_override():
     assert effort_params(soccer, "shin")["min_duration_s"] == 2.0
     assert effort_params(soccer, "phone_armband")["threshold"] == 5.5
     assert effort_params(soccer, None)["threshold"] == 5.5
+    assert effort_params(soccer, "ankle")["threshold"] == 9.5
+    assert effort_params(get_profile("general"), "ankle")["threshold"] == 9.0  # lower leg, any sport
 
 
 def test_format_float():

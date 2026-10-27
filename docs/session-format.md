@@ -35,9 +35,10 @@ Unused columns are left **empty** (not `0`, not `NaN`).
 | `whoop_hr` | WHOOP strap via its built-in Heart Rate Broadcast (standard BLE Heart Rate service 0x180D) |
 | `movesense` | Movesense sensor (planned) |
 | `xiao` | Seeed XIAO nRF52840 Sense (planned) |
+| `apple_watch` | Apple Watch app (`mobile/ios/LiveTrainingWatch`): acc, gyro, hr. Worn on the wrist or strapped to the lower leg |
 | `polar` | Polar sensor (planned) |
 
-The `phone` source is also used for `event` rows, because events come from buttons in the app.
+`event` rows use the source of the device whose button was pressed (`phone`, or `apple_watch` on the watch).
 
 ### `kind`
 
@@ -82,7 +83,7 @@ t_ms,source,kind,x,y,z,value
   "athlete_id": 1,
   "sport": "soccer",
   "session_type": "training",
-  "started_at": "2026-10-27T18:02:11Z",
+  "started_at": "2026-10-27T18:02:11.456Z",
   "app_version": "0.1.0",
   "device_model": "ios Version 18.5 (Build 22F76)",
   "sources": [
@@ -103,11 +104,11 @@ t_ms,source,kind,x,y,z,value
 | `athlete_id` | no | backend athlete ID (integer), or `null` if not set |
 | `sport` | yes | lowercase slug, e.g. `soccer`, `running`, `basketball`, `general`. Matches a sport profile name where one exists. |
 | `session_type` | yes | e.g. `training`, `match`, `drill`, `gym` |
-| `started_at` | yes | ISO 8601, UTC, the wall-clock time of `t_ms = 0` |
+| `started_at` | yes | ISO 8601, UTC, with milliseconds (e.g. `2026-10-27T18:02:11.456Z`): the wall-clock time of `t_ms = 0`. Used to line up recordings from two devices |
 | `app_version` | no | recording app version |
 | `device_model` | no | phone OS and version, as reported by the app |
 | `sources` | no | list of `{id, kinds, sample_rate_hz}`. The rate is the *measured* average of that source's busiest stream. |
-| `placement` | no | where the motion sensor was worn: `shin`, `thigh`, `wrist`, `waist`, `chest`, `upper_arm`, `phone_armband`, `phone_pocket`, … |
+| `placement` | no | where the motion sensor was worn: `ankle`, `shin`, `thigh`, `wrist`, `waist`, `chest`, `upper_arm`, `phone_armband`, `phone_pocket`, … |
 | `notes` | no | free text |
 | `duration_ms` | no | written by the app at stop |
 | `complete` | no | `false` while recording. A session that stays `false` was cut short (app killed), but its CSV is still valid up to that point. |

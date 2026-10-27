@@ -122,7 +122,8 @@ class SessionRecorder {
       'athlete_id': setup.athleteId,
       'sport': setup.sport,
       'session_type': setup.sessionType,
-      'started_at': '${_startedAt.toIso8601String().split('.').first}Z',
+      // Millisecond precision: used to line this recording up with a watch recording.
+      'started_at': '${_startedAt.toIso8601String().substring(0, 23)}Z',
       'app_version': appVersion,
       'device_model': deviceModel,
       'sources': [

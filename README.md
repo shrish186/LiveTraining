@@ -196,6 +196,12 @@ written next to the CSV (or to `--out <png>`).
 Phone-in-armband magnitudes differ from the synthetic data, so expect to tune the thresholds in
 `profiles/sport_profiles.yaml` after your first real sessions.
 
+## Apple Watch as the motion sensor
+
+Strap an Apple Watch to your lower leg as the body-worn motion sensor. A small watch app records
+accelerometer and gyroscope data, sends the session to the iPhone, and `analysis/merge_sessions.py`
+lines it up with the phone's WHOOP heart rate. Setup and use: [docs/apple-watch.md](docs/apple-watch.md).
+
 ## Adding a sport
 
 Add a profile to `profiles/sport_profiles.yaml` with only the keys that differ from `general`
@@ -321,12 +327,24 @@ Where the spec was open, I picked the simplest option that works and noted it he
     and version from `dart:io` (e.g. `ios Version 18.5 (Build 22F76)`). On Android, the app
     requests Bluetooth scan/connect plus location without needing the SDK level.
     Upload status is kept in `shared_preferences`.
+32. **The Apple Watch app is native Swift.** Flutter can't build watch apps. It records during a
+    HealthKit workout, which keeps it running with the screen off, and sends finished sessions to
+    the iPhone over WatchConnectivity. The iPhone side is a small receiver in `AppDelegate.swift` that
+    writes into the same sessions folder, so it needs no Flutter plugin. The watch target is added
+    once in Xcode (`docs/apple-watch.md`), because hand-editing the project file is fragile.
+33. **Two-device sessions are merged in the analysis, not on the phone.** Alignment uses the
+    `started_at` clocks (millisecond precision) and is refined by cross-correlating the sync jumps.
+    The jump match is only used when its correlation is at least 0.5. Merged metadata names
+    `motion_source` and `hr_source`. Without them, the analysis prefers a body-worn sensor over the
+    phone and WHOOP heart rate over others.
+34. **Lower-leg thresholds (`ankle`, `shin`) live in `general`** because they reflect where the
+    sensor sits, not the sport. They're untuned starting guesses.
 
 ## Status
 
 - **Verified in development:**
   - Backend: 63 tests passing
-  - Analysis: 15 tests passing
+  - Analysis: 19 tests passing
   - Flutter: 46 tests passing, `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse

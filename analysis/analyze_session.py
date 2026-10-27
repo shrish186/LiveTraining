@@ -17,7 +17,14 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from ltlib import core  # noqa: E402
 from ltlib.profiles import BASE_PROFILE, effort_params, get_profile, load_profiles  # noqa: E402
-from ltlib.session_io import event_rows, load_metadata, load_session_csv, motion_rows, scalar_rows  # noqa: E402
+from ltlib.session_io import (  # noqa: E402
+    event_rows,
+    load_metadata,
+    load_session_csv,
+    motion_rows,
+    pick_source,
+    scalar_rows,
+)
 
 
 def mmss(t_s: float) -> str:
@@ -35,16 +42,20 @@ def analyze(csv_path: str | Path, metadata_path: str | Path | None = None, profi
     effort_cfg = effort_params(profile, placement)
     fatigue_cfg = profile["fatigue"]
 
-    acc = motion_rows(df, "acc")
+    # Body-worn sensor over the phone; WHOOP heart rate over watch heart rate (merged sessions name them).
+    motion_source = pick_source(df, "acc", meta.get("motion_source"), avoid=("phone",))
+    hr_source = pick_source(df, "hr", meta.get("hr_source") or "whoop_hr")
+    acc = motion_rows(df, "acc", motion_source)
     mag = core.smooth_on_grid(acc["t_s"].to_numpy(),
                               core.dynamic_magnitude(acc["x"].to_numpy(), acc["y"].to_numpy(), acc["z"].to_numpy()),
                               profile["motion"]["smoothing_window_s"])
     efforts = core.detect_efforts(mag, effort_cfg["threshold"], effort_cfg["min_duration_s"],
                                   effort_cfg.get("merge_gap_s", 0.0))
-    hr = scalar_rows(df, "hr")
+    hr = scalar_rows(df, "hr", hr_source)
     core.add_hr_recovery(efforts, hr["t_s"].to_numpy(), hr["value"].to_numpy(), fatigue_cfg["hr_recovery_window_s"])
     fatigue = core.assess_fatigue(efforts, fatigue_cfg["baseline_window_min"] * 60, fatigue_cfg["peak_drop_pct"])
     return {"df": df, "meta": meta, "profile": profile, "placement": placement, "effort_cfg": effort_cfg,
+            "motion_source": motion_source, "hr_source": hr_source,
             "mag": mag, "hr": hr, "events": event_rows(df), "efforts": efforts, "fatigue": fatigue,
             "duration_s": float(df["t_ms"].max() - df["t_ms"].min()) / 1000.0, "load": core.motion_load(mag)}
 
@@ -55,6 +66,7 @@ def summary_text(r: dict) -> str:
     lines = [
         f"Session   {meta.get('session_id', '?')}",
         f"Sport     {meta.get('sport', '?')} / {meta.get('session_type', '?')}   placement: {r['placement'] or '?'}",
+        f"Sources   motion: {r['motion_source'] or 'none'}   heart rate: {r['hr_source'] or 'none'}",
         f"Profile   {r['profile']['name']}   effort threshold {r['effort_cfg']['threshold']} m/s², "
         f"min {r['effort_cfg']['min_duration_s']} s",
         f"Duration  {mmss(r['duration_s'])}   motion load {r['load']:.1f} (m/s²)·min",

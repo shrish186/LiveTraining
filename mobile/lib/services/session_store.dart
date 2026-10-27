@@ -16,6 +16,10 @@ class LocalSession {
   DateTime? get startedAt => DateTime.tryParse(metadata['started_at'] as String? ?? '')?.toLocal();
   Duration get duration => Duration(milliseconds: (metadata['duration_ms'] as num?)?.toInt() ?? 0);
   bool get complete => metadata['complete'] as bool? ?? true;
+
+  /// True for sessions recorded by the Apple Watch app and received from the watch.
+  bool get fromWatch =>
+      (metadata['sources'] as List? ?? const []).any((s) => s is Map && s['id'] == 'apple_watch');
 }
 
 /// Sessions recorded on this device, in `<app documents>/sessions/`.

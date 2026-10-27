@@ -53,7 +53,7 @@ void main() {
     expect(meta['sport'], 'soccer');
     expect(meta['session_type'], 'drill');
     expect(meta['placement'], 'shin');
-    expect(meta['started_at'], '2026-10-27T18:02:11Z');
+    expect(meta['started_at'], '2026-10-27T18:02:11.456Z');
     expect(meta['complete'], isTrue);
     final sources = {for (final s in meta['sources'] as List) s['id']: s};
     expect(sources.keys, unorderedEquals(['phone', 'whoop_hr']));

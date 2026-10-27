@@ -22,7 +22,13 @@ profiles:
       threshold: 5.0                 # smoothed magnitude above this = high intensity
       min_duration_s: 3.0            # shorter bursts are ignored
       merge_gap_s: 1.0               # bursts closer than this are one effort
-    placements: {}
+    placements:
+      # The lower leg sees much larger accelerations than the trunk or a pocket.
+      # Starting guesses, to be tuned on real sessions (e.g. Apple Watch strapped above the ankle).
+      ankle:
+        threshold: 9.0
+      shin:
+        threshold: 8.0
     fatigue:
       baseline_window_min: 15        # "early" part of the session
       peak_drop_pct: 5.0             # effort peaks this much lower than baseline...
@@ -35,6 +41,8 @@ profiles:
       threshold: 5.5
       min_duration_s: 2.0            # soccer sprints are short
     placements:
+      ankle:
+        threshold: 9.5               # untuned starting guess
       shin:
         threshold: 8.0               # lower leg sees much larger accelerations
       thigh:

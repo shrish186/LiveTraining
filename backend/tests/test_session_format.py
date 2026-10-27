@@ -86,3 +86,10 @@ def test_metadata_errors(overrides, message):
     with pytest.raises(SessionFormatError) as exc:
         validate_metadata(make_metadata(**overrides))
     assert any(message in e for e in exc.value.errors)
+
+
+def test_apple_watch_rows_accepted():
+    text = HEADER + "0,apple_watch,event,,,,session_start\n5,apple_watch,acc,0.1,9.8,0.2,\n6,apple_watch,gyro,0,0,0,\n900,apple_watch,hr,,,,88\n"
+    s = validate_and_summarize(io.StringIO(text))
+    assert s.sources == ["apple_watch"]
+    assert s.sample_count == 3

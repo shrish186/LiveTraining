@@ -13,6 +13,7 @@ Live calls come later and will reuse the analysis logic and the sport profiles.
 | Path | What |
 |---|---|
 | `mobile/` | Flutter app (iOS and Android): BLE HR, phone motion, session recorder, upload |
+| `mobile/ios/LiveTrainingWatch/` | Apple Watch app (Swift): leg/wrist motion + HR, sends sessions to the iPhone. Setup: `docs/apple-watch.md` |
 | `backend/` | FastAPI and SQLAlchemy: WHOOP OAuth and API proxy, session upload and storage |
 | `analysis/` | Python: synthetic sessions, offline session analysis and plots |
 | `profiles/sport_profiles.yaml` | **all** sport-specific logic: thresholds, min durations, placements |
