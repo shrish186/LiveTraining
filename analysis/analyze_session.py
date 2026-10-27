@@ -11,11 +11,13 @@ import sys
 from pathlib import Path
 
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from ltlib import core  # noqa: E402
+from ltlib import steps as st  # noqa: E402
 from ltlib.profiles import BASE_PROFILE, effort_params, get_profile, load_profiles  # noqa: E402
 from ltlib.session_io import (  # noqa: E402
     event_rows,
@@ -54,10 +56,67 @@ def analyze(csv_path: str | Path, metadata_path: str | Path | None = None, profi
     hr = scalar_rows(df, "hr", hr_source)
     core.add_hr_recovery(efforts, hr["t_s"].to_numpy(), hr["value"].to_numpy(), fatigue_cfg["hr_recovery_window_s"])
     fatigue = core.assess_fatigue(efforts, fatigue_cfg["baseline_window_min"] * 60, fatigue_cfg["peak_drop_pct"])
-    return {"df": df, "meta": meta, "profile": profile, "placement": placement, "effort_cfg": effort_cfg,
+    step_report = analyze_steps(profile, placement, acc, efforts)
+    return {"steps": step_report,"df": df, "meta": meta, "profile": profile, "placement": placement, "effort_cfg": effort_cfg,
             "motion_source": motion_source, "hr_source": hr_source,
             "mag": mag, "hr": hr, "events": event_rows(df), "efforts": efforts, "fatigue": fatigue,
             "duration_s": float(df["t_ms"].max() - df["t_ms"].min()) / 1000.0, "load": core.motion_load(mag)}
+
+
+def analyze_steps(profile: dict, placement: str | None, acc, efforts: list[core.Effort]) -> dict | None:
+    """Footstrikes, impact load, jumps and form drift. Only for leg placements listed in the profile."""
+    cfg = profile.get("steps") or {}
+    if placement not in (cfg.get("placements") or []) or acc.empty:
+        return None
+    t = acc["t_s"].to_numpy()
+    g = st.total_g(acc["x"].to_numpy(), acc["y"].to_numpy(), acc["z"].to_numpy())
+    strikes = st.detect_strikes(t, g, cfg["min_peak_g"], cfg["min_interval_s"])
+    j = profile["jumps"]
+    jumps = st.detect_jumps(t, g, j["takeoff_g"], j["flight_below_g"], j["landing_above_g"], j["landing_peak_g"],
+                            j["min_flight_s"], j["max_flight_s"], j["quiet_s"], j["quiet_std_g"])
+    per_effort = [st.effort_steps(strikes, e.start_s, e.end_s, cfg["max_stride_s"]) for e in efforts]
+    gaps = st.stride_times(strikes, cfg["max_stride_s"])
+    return {
+        "strikes": strikes,
+        "impact_load": st.impact_load(strikes),
+        "impact_load_weighted": st.impact_load(strikes, profile["impact"]["weight_exponent"]),
+        "weight_exponent": profile["impact"]["weight_exponent"],
+        "max_peak_g": max((s.peak_g for s in strikes), default=None),
+        "stride_ms": float(np.median(gaps) * 1000) if len(gaps) else None,
+        "jumps": jumps,
+        "per_effort": per_effort,
+        "drift": st.form_drift(per_effort, profile["drift"]["compare_efforts"]),
+    }
+
+
+def steps_text(s: dict) -> list[str]:
+    lines = ["", f"Steps ({len(s['strikes'])} footstrikes of the sensor leg)"]
+    if s["strikes"]:
+        stride = f"{s['stride_ms']:.0f} ms" if s["stride_ms"] else "n/a"
+        lines.append(f"  impact load {s['impact_load']:.0f} g, weighted {s['impact_load_weighted']:.0f} "
+                     f"g^{s['weight_exponent']:g}, hardest strike {s['max_peak_g']:.1f} g, median stride {stride}")
+    if s["jumps"]:
+        heights = ", ".join(f"{jmp.height_cm:.1f}" for jmp in s["jumps"])
+        lines.append(f"  jumps: {len(s['jumps'])}, heights {heights} cm (best "
+                     f"{max(jmp.height_cm for jmp in s['jumps']):.1f} cm, flight-time method)")
+    if s["per_effort"]:
+        lines.append("  #  strikes  peak g  stride ms  stride var")
+        for i, e in enumerate(s["per_effort"], 1):
+            def f(v, fmt):
+                return format(v, fmt) if v is not None else "n/a"
+            lines.append(f"  {i:<2} {e.strikes:7d}  {f(e.peak_g, '6.1f')}  {f(e.stride_ms, '9.0f')}  "
+                         f"{f(e.stride_cv_pct, '9.0f')}%")
+    d = s["drift"]
+    if d:
+        parts = []
+        if d.peak_g_pct is not None:
+            parts.append(f"strike peak {d.peak_g_pct:+.0f}%")
+        if d.stride_ms is not None:
+            parts.append(f"stride time {d.stride_ms:+.0f} ms")
+        if d.stride_cv_pts is not None:
+            parts.append(f"stride variability {d.stride_cv_pts:+.0f} pts")
+        lines.append(f"  Form drift (last {d.compared} vs first {d.compared} efforts): " + ", ".join(parts))
+    return lines
 
 
 def summary_text(r: dict) -> str:
@@ -93,6 +152,8 @@ def summary_text(r: dict) -> str:
                          f"efforts and HR recovery slower ({e.hr_recovery_bpm:.1f} vs {base_hrr}).")
         else:
             lines.append("No fatigue signal: effort peaks and HR recovery held up.")
+    if r.get("steps"):
+        lines += steps_text(r["steps"])
     return "\n".join(lines)
 
 

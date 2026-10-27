@@ -33,6 +33,24 @@ profiles:
       baseline_window_min: 15        # "early" part of the session
       peak_drop_pct: 5.0             # effort peaks this much lower than baseline...
       hr_recovery_window_s: 60       # ...AND HR drop over this window after an effort is slower than baseline
+    steps:                           # footstrikes from a leg-worn sensor; total |acc| in g (standing = 1 g)
+      placements: [ankle, shin]      # only these placements get step and impact metrics
+      min_peak_g: 2.0                # a strike is a peak above this...
+      min_interval_s: 0.35           # ...with no stronger peak closer than this (drops the other foot)
+      max_stride_s: 1.5              # longer gaps between strikes = not moving
+    impact:
+      weight_exponent: 2             # weighted load = sum of peak_g ** this (big hits count more)
+    jumps:                           # standing jumps, e.g. the sync jumps; height from flight time
+      takeoff_g: 2.0                 # push-off peak
+      flight_below_g: 0.6            # in the air
+      landing_above_g: 1.5           # back on the ground
+      landing_peak_g: 2.5
+      min_flight_s: 0.08
+      max_flight_s: 1.0
+      quiet_s: 0.8                   # standing still this long before (and settling after)
+      quiet_std_g: 0.15
+    drift:                           # form drift: the last N efforts vs the first N
+      compare_efforts: 2
     warmup:                          # live call "Warmed up, go"
       min_minutes: 5                 # never earlier than this into the session
       hr_above_rest_bpm: 40          # HR at least this far above WHOOP resting HR...
