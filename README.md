@@ -85,7 +85,7 @@ cp .env.example .env            # then edit .env: WHOOP_CLIENT_ID, WHOOP_CLIENT_
   `.venv/bin/uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000`.
 - Data is stored in `backend/data/` (SQLite DB and uploaded sessions; gitignored). For Postgres, set
   `DATABASE_URL=postgresql+psycopg://user:pass@host/db` and `pip install "psycopg[binary]"`.
-- Run a single worker (the default). See Decisions #4.
+- Run a single worker (the default). See Decisions #17.
 
 ## 3. Connect your WHOOP account
 
@@ -99,6 +99,10 @@ Check that it works: <http://localhost:8000/athletes/1/whoop/recovery/latest> sh
 recovery.
 
 ## 4. Run the app on your phone
+
+**iPhone and Mac, first time:** follow the checklist in
+[docs/first-run-iphone.md](docs/first-run-iphone.md). It covers Xcode, signing, Developer Mode,
+permissions and troubleshooting.
 
 Needs the Flutter SDK (<https://docs.flutter.dev/get-started/install>). The platform folders
 (`mobile/android`, `mobile/ios`) are already generated and include the permissions.
@@ -282,8 +286,9 @@ Where the spec was open, I picked the simplest option that works and noted it he
 25. **The HR source accepts any standard BLE heart-rate device** and prefers one whose name contains
     "WHOOP". If the link drops, it reconnects automatically. WHOOP's broadcast may not include RR
     intervals; everything works without them.
-26. **iOS shows its own Bluetooth prompt**, so `permission_handler` is only used on Android: scan and
-    connect on Android 12+, location on 11 and older.
+26. **iOS shows its own Bluetooth prompt**, so `permission_handler` only *requests* permissions on
+    Android (scan and connect on Android 12+, location on 11 and older). On iOS it only reads the
+    Motion & Fitness status, to explain a missing motion stream.
 27. **The app talks to the backend over plain HTTP on the LAN.**
     - Android allows cleartext traffic.
     - The app's own requests use Dart's sockets, which App Transport Security doesn't cover.
@@ -292,15 +297,15 @@ Where the spec was open, I picked the simplest option that works and noted it he
       through `URLSession` works too.
     - iOS asks for **Local Network** permission on first use.
     - Use HTTPS before this leaves the LAN.
-29. **iOS minimum is 15.0.** Flutter 3.47 requires it; the plugins need 13.0 at most. The Podfile
+28. **iOS minimum is 15.0.** Flutter 3.47 requires it; the plugins need 13.0 at most. The Podfile
     and the Xcode project both say 15.0.
-30. **The iOS bundle identifier lives in one place:** `mobile/ios/Flutter/AppIdentity.xcconfig`
+29. **The iOS bundle identifier lives in one place:** `mobile/ios/Flutter/AppIdentity.xcconfig`
     (`APP_BUNDLE_ID = com.shrish186.livetraining`).
-31. **The app checks the Bluetooth adapter before scanning** (off, permission denied, unsupported)
+30. **The app checks the Bluetooth adapter before scanning** (off, permission denied, unsupported)
     and watches it while connected. Motion problems are detected by the absence of data: iOS gives
     raw accelerometer data without Motion & Fitness access, so that prompt may never appear, and the
     app only mentions the permission if it is explicitly denied.
-28. **Extra packages:** `uuid` (session IDs) and `device_info_plus` (device model in the metadata).
+31. **Extra packages:** `uuid` (session IDs) and `device_info_plus` (device model in the metadata).
     Upload status is kept in `shared_preferences`.
 
 ## Status
