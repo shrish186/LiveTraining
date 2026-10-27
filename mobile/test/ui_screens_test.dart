@@ -94,6 +94,8 @@ Future<AppController> _controller({required bool withData}) async {
       'efforts': 7,
       'fatigue_efforts': 2,
       'hr_max': 178,
+      'impact_load': 9640,
+      'strikes': 1105,
     }),
     _localSession('b', today.add(const Duration(hours: 7, minutes: 30)), 25, {
       'load': 6.1,

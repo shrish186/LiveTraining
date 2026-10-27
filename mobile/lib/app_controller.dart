@@ -336,6 +336,8 @@ class AppController extends ChangeNotifier {
         fatigueEfforts: c?.efforts.where((e) => e.fatigue).length ?? 0,
         hrAvg: stats.hrAvg,
         hrMax: stats.hrMax,
+        impactLoad: c?.strikes?.impactLoad,
+        strikes: c?.strikes?.strikes,
       ).toJson(),
     );
     coach = null;

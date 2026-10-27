@@ -62,6 +62,9 @@ class CoachConfig {
     required this.warmupSustainS,
     required this.readinessLowBelow,
     required this.readinessHighFrom,
+    this.strikeMinPeakG,
+    this.strikeMinIntervalS = 0.35,
+    this.impactWeightExponent = 1,
   });
 
   factory CoachConfig.fromProfile(Map<String, dynamic> profile, String? placement) {
@@ -71,6 +74,8 @@ class CoachConfig {
     final fatigue = profile['fatigue'] as Map<String, dynamic>;
     final warmup = profile['warmup'] as Map<String, dynamic>;
     final readiness = profile['readiness'] as Map<String, dynamic>;
+    final steps = profile['steps'] as Map<String, dynamic>?;
+    final legWorn = steps != null && ((steps['placements'] as List?) ?? const []).contains(placement);
     return CoachConfig(
       profileName: profile['name'] as String,
       smoothingWindowS: _num(profile['motion'] as Map<String, dynamic>, 'smoothing_window_s'),
@@ -85,6 +90,9 @@ class CoachConfig {
       warmupSustainS: _num(warmup, 'sustain_s'),
       readinessLowBelow: _num(readiness, 'low_below'),
       readinessHighFrom: _num(readiness, 'high_from'),
+      strikeMinPeakG: legWorn ? _num(steps, 'min_peak_g') : null,
+      strikeMinIntervalS: legWorn ? _num(steps, 'min_interval_s') : 0.35,
+      impactWeightExponent: legWorn ? _num(profile['impact'] as Map<String, dynamic>, 'weight_exponent') : 1,
     );
   }
 
@@ -101,4 +109,9 @@ class CoachConfig {
   final double warmupSustainS;
   final double readinessLowBelow;
   final double readinessHighFrom;
+
+  /// Footstrike detection, only for leg placements listed in the profile's `steps` block (else null).
+  final double? strikeMinPeakG;
+  final double strikeMinIntervalS;
+  final double impactWeightExponent;
 }

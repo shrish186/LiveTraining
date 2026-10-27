@@ -8,6 +8,7 @@ import 'dart:math' as math;
 
 import '../util/motion.dart';
 import 'profiles.dart';
+import 'strikes.dart';
 
 enum CallType { readiness, warmedUp, effort, fatigue }
 
@@ -49,12 +50,22 @@ class LiveEffort {
 
 class LiveCoach {
   LiveCoach(this.cfg, {this.restingHr, this.recoveryScore})
-    : _windowBins = math.max(1, (cfg.smoothingWindowS * gridHz).round());
+    : _windowBins = math.max(1, (cfg.smoothingWindowS * gridHz).round()),
+      strikes = cfg.strikeMinPeakG == null
+          ? null
+          : StrikeDetector(
+              minPeakG: cfg.strikeMinPeakG!,
+              minIntervalS: cfg.strikeMinIntervalS,
+              weightExponent: cfg.impactWeightExponent,
+            );
 
   static const gridHz = 10; // same grid as analysis/ltlib/core.py
   static const _hrMaxGapS = 5.0;
 
   final CoachConfig cfg;
+
+  /// Footstrikes and impact load, when the motion comes from a leg (null otherwise).
+  final StrikeDetector? strikes;
 
   /// From WHOOP. Without it, warm-up is measured against the lowest HR of the first minute.
   final double? restingHr;
@@ -102,7 +113,12 @@ class LiveCoach {
     if (score == null) return const [];
     final pct = score.round();
     final call = score >= cfg.readinessHighFrom
-        ? CoachCall(CallType.readiness, 0, 'High readiness · $pct%', 'Recovered well. A good day to push the hard sets.')
+        ? CoachCall(
+            CallType.readiness,
+            0,
+            'High readiness · $pct%',
+            'Recovered well. A good day to push the hard sets.',
+          )
         : score < cfg.readinessLowBelow
         ? CoachCall(CallType.readiness, 0, 'Low readiness · $pct%', 'Recovery is low. Keep today\'s load lighter.')
         : CoachCall(
@@ -115,6 +131,7 @@ class LiveCoach {
   }
 
   void addAcc(int tMs, double x, double y, double z) {
+    strikes?.add(tMs / 1000, math.sqrt(x * x + y * y + z * z) / gravity);
     final bin = tMs ~/ (1000 ~/ gridHz);
     if (_bin != null && bin != _bin) _closeBin();
     _bin = bin;

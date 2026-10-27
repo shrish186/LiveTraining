@@ -270,6 +270,10 @@ class _TodayCard extends StatelessWidget {
                     _MiniStat(label: 'Training load', value: day.load.toStringAsFixed(1), unit: ''),
                     const SizedBox(height: 14),
                     _MiniStat(label: 'Efforts', value: '${day.efforts}', unit: ''),
+                    if (day.impactLoad != null) ...[
+                      const SizedBox(height: 14),
+                      _MiniStat(label: 'Impact load', value: day.impactLoad!.round().toString(), unit: 'g'),
+                    ],
                   ],
                 ),
               ),
@@ -470,7 +474,7 @@ class _MotionCard extends StatelessWidget {
                       ),
                     ],
                   )
-                : Text('Phone · ${prettySlug(controller.placement)}', style: AppText.dim),
+                : Text(prettySlug(controller.placement), style: AppText.dim),
           ),
           const SizedBox(height: 12),
           Row(

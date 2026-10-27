@@ -10,6 +10,8 @@ class SessionSummary {
     required this.fatigueEfforts,
     this.hrAvg,
     this.hrMax,
+    this.impactLoad,
+    this.strikes,
   });
 
   /// Motion load, (m/s²)·min, as SessionStats.load.
@@ -21,12 +23,18 @@ class SessionSummary {
   final double? hrAvg;
   final double? hrMax;
 
+  /// Sum of footstrike peaks in g, from a leg sensor (null without one).
+  final double? impactLoad;
+  final int? strikes;
+
   Map<String, dynamic> toJson() => {
     'load': double.parse(load.toStringAsFixed(1)),
     'efforts': efforts,
     'fatigue_efforts': fatigueEfforts,
     'hr_avg': hrAvg?.round(),
     'hr_max': hrMax?.round(),
+    if (impactLoad != null) 'impact_load': impactLoad!.round(),
+    if (strikes != null) 'strikes': strikes,
   };
 
   /// Null for sessions recorded before summaries existed (or by another device).
@@ -38,6 +46,8 @@ class SessionSummary {
       fatigueEfforts: (j['fatigue_efforts'] as num?)?.toInt() ?? 0,
       hrAvg: (j['hr_avg'] as num?)?.toDouble(),
       hrMax: (j['hr_max'] as num?)?.toDouble(),
+      impactLoad: (j['impact_load'] as num?)?.toDouble(),
+      strikes: (j['strikes'] as num?)?.toInt(),
     );
   }
 }
@@ -69,6 +79,13 @@ class DaySummary {
   int get sessions => entries.length;
   Duration get trainingTime => entries.fold(Duration.zero, (sum, e) => sum + e.duration);
   double get load => entries.fold(0.0, (sum, e) => sum + (e.summary?.load ?? 0));
+
+  /// Null when no session today had a leg sensor.
+  double? get impactLoad {
+    final values = entries.map((e) => e.summary?.impactLoad).whereType<double>();
+    return values.isEmpty ? null : values.reduce((a, b) => a + b);
+  }
+
   int get efforts => entries.fold(0, (sum, e) => sum + (e.summary?.efforts ?? 0));
   int get fatigueEfforts => entries.fold(0, (sum, e) => sum + (e.summary?.fatigueEfforts ?? 0));
 
