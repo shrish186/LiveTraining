@@ -51,6 +51,9 @@ Unused columns are left **empty** (not `0`, not `NaN`).
 | `event` | label text | `value` |
 
 Event labels are free text, e.g. `sync_jumps`, `drill_start`, `drill_end`, `mark`.
+The app also writes its live calls as events: `call_readiness`, `call_warmed_up`, `call_effort`,
+`call_fatigue`. `mark` is the athlete's "that was a real effort" tap, used by
+`analysis/validate_session.py`.
 Labels must not contain commas, quotes or newlines. The app replaces these with spaces before writing.
 
 ### Rules

@@ -6,7 +6,8 @@ WHOOP heart rate and recovery to give live calls during training ("warmed up, go
 
 v1 is the data pipeline. It records phone motion and WHOOP HR on the phone, uploads sessions
 to the backend, pulls WHOOP recovery through the official API, and analyses sessions offline.
-Live calls come later and will reuse the analysis logic and the sport profiles.
+The first live calls (readiness, warm-up, effort, fatigue) run on the phone and reuse the analysis
+logic and the sport profiles.
 
 ## Layout
 
@@ -41,6 +42,12 @@ Live calls come later and will reuse the analysis logic and the sport profiles.
 - One monotonic clock (a phone `Stopwatch`) stamps every stream. `t_ms` is ms since session start.
 - Motion magnitude = `| |acc| - 9.81 |` (gravity removed), then a rolling mean. Used in the app and
   in the analysis alike.
+- `mobile/assets/sport_profiles.yaml` is a copy of `profiles/sport_profiles.yaml` (the app's live
+  coach reads it). Edit the root file, then copy it; a test fails if they differ.
+- The live coach (`mobile/lib/coach/live_coach.dart`) mirrors `analysis/ltlib/core.py`. After an
+  analysis change, run `python make_parity_fixture.py` and keep `coach_parity_test.dart` passing.
+- Live calls are written to the session as `call_*` events. Accuracy is checked with
+  `analysis/validate_session.py` against the athlete's `mark` events.
 - WHOOP token refresh invalidates the old access and refresh tokens. Always persist the new refresh
   token and serialise refreshes per athlete (see `backend/app/whoop.py`).
 - Backend tests never call the real WHOOP API. Use `httpx.MockTransport`.
@@ -60,6 +67,8 @@ pytest
 cd analysis && pip install -r requirements.txt
 python make_synthetic_session.py --out output/
 python analyze_session.py output/synthetic.csv --metadata output/synthetic.json --profile soccer
+python validate_session.py <session.csv>   # detection vs your Mark taps, threshold suggestion
+python make_parity_fixture.py             # after an analysis change (app parity test)
 pytest
 
 # mobile

@@ -193,8 +193,47 @@ python analyze_session.py ../backend/data/sessions/<session_id>.csv --profile ge
 The console prints efforts, HR recovery 60 s after each effort, and the fatigue verdict. A PNG is
 written next to the CSV (or to `--out <png>`).
 
-Phone-in-armband magnitudes differ from the synthetic data, so expect to tune the thresholds in
-`profiles/sport_profiles.yaml` after your first real sessions.
+Phone-in-armband magnitudes differ from the synthetic data, so tune the thresholds on real
+sessions with the check below.
+
+### Check detection accuracy and tune the threshold
+
+1. Record a session with real hard efforts (sprints, intervals, jump sets). Tap **Mark** right
+   after each one, and only then.
+2. Upload it and run:
+
+```bash
+python validate_session.py ../backend/data/sessions/<session_id>.csv
+```
+
+It lists each marked effort as found or MISSED and each unmarked detection as EXTRA. It prints
+precision (detections that were real) and recall (real efforts that were found) at the current
+threshold and at every other threshold. Then it suggests a threshold: the middle of the band with
+the best score, so small changes in effort don't flip the result. Change
+`profiles/sport_profiles.yaml` only once a few sessions agree, and run the check per placement
+(armband, shin and so on), because each placement has its own threshold.
+
+## Live calls
+
+While recording, the app makes these calls on the Live tab (the Coach card) and buzzes:
+
+| Call | When |
+|---|---|
+| **High / Moderate / Low readiness** | At start, from today's WHOOP recovery (bands in `general.readiness`) |
+| **Warmed up, go** | Once, after `warmup.min_minutes`, when HR has held `hr_above_rest_bpm` above resting for `sustain_s` (resting = WHOOP resting HR, else the lowest HR of the first minute) |
+| **Effort N** | Each detected effort, with its length and peak (light buzz) |
+| **Fatigue building** | An effort after the baseline window that is weaker than the early efforts and whose HR recovered slower (the same rule as the analysis) |
+
+Every call is also written to the session file as an event (`call_warmed_up`, `call_fatigue`, and
+so on), so it shows on the analysis plot.
+
+The coach (`mobile/lib/coach/live_coach.dart`) is a streaming port of `analysis/ltlib/core.py`.
+`mobile/test/coach_parity_test.dart` replays a synthetic session through it and must find the same
+efforts (start and end ±1 s, peak ±2 %), HR recoveries (±2 bpm) and fatigue flags as the Python
+analysis. If you change the analysis, run `python make_parity_fixture.py` in `analysis/` and make
+the app's test pass again. The app reads the profiles from `mobile/assets/sport_profiles.yaml`, a
+copy of `profiles/sport_profiles.yaml`. Copy the file after editing it; `analysis/tests/test_profiles_sync.py`
+fails if they differ.
 
 ## Apple Watch as the motion sensor
 
@@ -221,8 +260,8 @@ The recorder, upload and analysis don't change.
 
 ```bash
 cd backend  && .venv/bin/pytest # CSV validation, upload/listing, OAuth state, token refresh (httpx.MockTransport)
-cd analysis && pytest          # effort detection, HR recovery, fatigue rule, profiles, end-to-end on synthetic data
-cd mobile   && flutter test    # heart-rate parser, CSV rows, recorder, motion magnitude
+cd analysis && pytest          # effort detection, HR recovery, fatigue rule, profiles, validation, end-to-end
+cd mobile   && flutter test    # heart-rate parser, CSV rows, recorder, motion magnitude, live coach (+ parity with the analysis)
 ```
 
 ---
@@ -339,19 +378,28 @@ Where the spec was open, I picked the simplest option that works and noted it he
     phone and WHOOP heart rate over others.
 34. **Lower-leg thresholds (`ankle`, `shin`) live in `general`** because they reflect where the
     sensor sits, not the sport. They're untuned starting guesses.
+35. **Live calls reuse the offline rule rather than a new model.** Smoothing is trailing (the
+    coach can't look ahead), which shifts times by about half a window, so the parity tolerance is
+    ±1 s. HR recovery is known only once its 60 s window has passed, so a fatigue call comes about a
+    minute after the effort. That is late, but it is the same evidence the analysis uses.
+36. **The app bundles a copy of the profiles** (`mobile/assets/sport_profiles.yaml`) instead of
+    fetching them from the backend, so calls work with no network. A test keeps the copy identical.
+37. **Accuracy is checked against the athlete's own Mark taps**, because there is no ground truth
+    otherwise. A tap counts for an effort when it falls between 5 s before the effort starts and 15 s
+    after it ends. The validation tool only suggests a threshold. Profiles change by hand.
 
 ## Status
 
 - **Verified in development:**
-  - Backend: 63 tests passing
-  - Analysis: 19 tests passing
-  - Flutter: 46 tests passing, `flutter analyze` clean
+  - Backend: 64 tests passing
+  - Analysis: 27 tests passing
+  - Flutter: 53 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
 - **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development
   environment) and a real WHOOP OAuth round trip. Both are the first things to try with the steps
   above.
 - **Next:**
-  - Live calls on the phone, reusing the analysis logic and the profiles
+  - Tune thresholds on real sessions with `validate_session.py`, per placement
+  - Live calls from the Apple Watch's motion (today, live calls use the phone's motion)
   - A Movesense `MotionSource`
-  - Tuning thresholds on real sessions
