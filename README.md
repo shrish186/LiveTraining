@@ -240,6 +240,8 @@ fails if they differ.
 Strap an Apple Watch to your lower leg as the body-worn motion sensor. A small watch app records
 accelerometer and gyroscope data, sends the session to the iPhone, and `analysis/merge_sessions.py`
 lines it up with the phone's WHOOP heart rate. Setup and use: [docs/apple-watch.md](docs/apple-watch.md).
+Until the watch app is installed, the App Store app SensorLog (100 Hz) can record the leg instead,
+and `analysis/import_sensorlog.py` converts its files.
 
 ## Adding a sport
 
@@ -387,12 +389,15 @@ Where the spec was open, I picked the simplest option that works and noted it he
 37. **Accuracy is checked against the athlete's own Mark taps**, because there is no ground truth
     otherwise. A tap counts for an effort when it falls between 5 s before the effort starts and 15 s
     after it ends. The validation tool only suggests a threshold. Profiles change by hand.
+38. **SensorLog imports use the `apple_watch` source.** It is the same device, so the session
+    format doesn't change. `device_model` says "Apple Watch (SensorLog)". The import keeps only
+    acc and rotation rate. It drops location and SensorLog's heart rate, because WHOOP supplies HR.
 
 ## Status
 
 - **Verified in development:**
   - Backend: 64 tests passing
-  - Analysis: 31 tests passing
+  - Analysis: 34 tests passing
   - Flutter: 53 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse

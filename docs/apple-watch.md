@@ -91,6 +91,34 @@ you only need step 6 (Developer Mode) and step 7 (install). The steps below are 
 7. Keep the phone nearby with the app open. The watch sends its files in the background, and the
    session appears in the **Sessions** tab tagged **Apple Watch**. Upload both sessions.
 
+## No watch app yet? Record with SensorLog
+
+Until our watch app is installed, the App Store app **SensorLog** works as the leg sensor at
+100 Hz (accelerometer and rotation rate).
+
+1. In SensorLog on the watch:
+   - **Log to file or iPhone**: file, 100 Hz.
+   - **Sensors to log**: accelerometer.
+   - Use **Start File Logging**, not Start HTTP Logging.
+2. Record as usual. Start the phone session (Sensor on: `phone_pocket` or `phone_armband`, where
+   the phone is), start SensorLog, do 3 jumps and tap Sync jumps, then train with Mark after each
+   effort.
+3. On the watch, go to **Log & Config Files** and send the file to the iPhone. In the iPhone
+   SensorLog app, open the folder tab, Share, and AirDrop it to the Mac. It arrives as a .zip in
+   Downloads.
+4. Convert, merge and analyse:
+
+```bash
+cd ~/LiveTraining/analysis && . .venv/bin/activate
+cd ~/Downloads && unzip -o SensorLogFiles_*.zip -d sensorlog && cd ~/LiveTraining/analysis
+python import_sensorlog.py ~/Downloads/sensorlog/*/"<file> Apple Watch.csv" --placement ankle
+python merge_sessions.py ../backend/data/sessions/<phone_id>.csv output/<new id>.csv
+python analyze_session.py output/merged_<phone_id>.csv
+```
+
+The SensorLog file also contains your **GPS location**. The import drops it. Don't commit or share
+the raw file (`.gitignore` blocks `SensorLogFiles_*` and `*Apple Watch.csv`).
+
 ## Did it really record at 800 Hz?
 
 Two checks:

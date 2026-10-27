@@ -45,3 +45,7 @@ xcuserdata/
 .idea/
 .vscode/
 *.swp
+
+# Raw SensorLog exports contain GPS coordinates: never commit them
+SensorLogFiles_*
+*Apple Watch.csv
