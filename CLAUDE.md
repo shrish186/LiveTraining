@@ -35,7 +35,7 @@ Live calls come later and will reuse the analysis logic and the sport profiles.
 ## Conventions
 
 - The session format is defined once in `docs/session-format.md`. If it changes, update the doc,
-  `backend/app/session_format.py`, `analysis/session_io.py` and `mobile/lib/recording/csv_row.dart`
+  `backend/app/session_format.py`, `analysis/ltlib/session_io.py` and `mobile/lib/recording/csv_row.dart`
   together.
 - One monotonic clock (a phone `Stopwatch`) stamps every stream. `t_ms` is ms since session start.
 - Motion magnitude = `| |acc| - 9.81 |` (gravity removed), then a rolling mean. Used in the app and

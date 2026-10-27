@@ -114,6 +114,6 @@ Unknown extra fields are allowed and preserved.
 
 - **mobile/** writes it (`SessionRecorder`, `csv_row.dart`).
 - **backend/** validates and summarises it on upload (`app/session_format.py`).
-- **analysis/** reads it (`session_io.py`) and generates it synthetically (`make_synthetic_session.py`).
+- **analysis/** reads it (`ltlib/session_io.py`) and generates it synthetically (`make_synthetic_session.py`).
 
 Change all three together, and update this file, if the format changes.

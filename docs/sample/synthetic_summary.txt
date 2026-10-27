@@ -1,0 +1,19 @@
+Session   ad666e3d-38c1-4544-b56e-4e24f364fe25
+Sport     soccer / training   placement: phone_armband
+Profile   soccer   effort threshold 5.5 m/s², min 2.0 s
+Duration  30:59   motion load 57.4 (m/s²)·min
+HR        min 67  max 174  mean 124 bpm
+
+Efforts: 6
+  #  start  dur(s)  peak   vs early   HR drop 60s  flag
+  1  10:30   24.3   6.86      base     57.9 bpm  
+  2  13:00   24.3   6.77      base     54.3 bpm  
+  3  14:30   24.3   6.80      base     56.1 bpm  
+  4  20:00   24.3   6.69     -1.7%     45.1 bpm  
+  5  24:00   24.2   6.27     -8.0%     38.0 bpm  FATIGUE
+  6  28:00   24.1   5.95    -12.6%     31.4 bpm  FATIGUE
+
+Early baseline: peak 6.81 m/s², HR drop 56.1 bpm
+Fatigue building from 24:00: effort peak 8.0% below early efforts and HR recovery slower (38.0 vs 56.1 bpm).
+
+Plot: docs/sample/synthetic_analysis.png
