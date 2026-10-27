@@ -47,17 +47,30 @@ Flutter can't create watch targets, so you add one in Xcode once. All the code i
      - `Privacy - Health Update Usage Description`
      - `Privacy - Motion Usage Description`
    - **Build Settings › Swift Language Version:** **Swift 5** (if it says Swift 6)
+   - **Build Settings › All › Supported Platforms:** set **Debug, Release and Profile** to
+     **watchOS**. Flutter's project template sets `SUPPORTED_PLATFORMS = iphoneos` at the project
+     level for Release and Profile, and the watch target inherits it. Without this override,
+     `flutter run --release` compiles the watch code for iOS and fails with "… is unavailable in iOS".
+   - If the Info tab drops new rows, add the privacy texts under **Build Settings › All**, searching
+     for "Usage Description".
 5. Select the **Runner** target › **Build Phases**: drag **Embed Watch Content** above
    **Thin Binary**. Without this, builds fail with "Cycle inside Runner".
 6. On the watch: **Settings › Privacy & Security › Developer Mode** › on. It appears after the
    watch has been seen by Xcode once: keep it unlocked, on the charger, near the paired iPhone.
-7. Install:
-   - **Watch:** in Xcode, choose scheme **LiveTrainingWatch Watch App** and your watch as the
-     destination, then click Run. The first install can take several minutes.
-   - **iPhone** (now including the receiver): `flutter run --release`
+7. Install (quit Xcode first with ⌘Q):
+   - `flutter run --release` builds the iPhone app with the watch app embedded. You should see
+     "Watch companion app found".
+   - **Watch:** on the iPhone, open the **Watch** app › scroll to **Available Apps** › **Live
+     Training** › **Install**. Alternatively, run the **LiveTrainingWatch Watch App** scheme from
+     Xcode with the watch as destination. That needs the watch visible in Window › Devices and
+     Simulators and Developer Mode on.
+   - If Xcode reports "Missing package product 'FlutterGeneratedPluginSwiftPackage'", run
+     `flutter build ios --config-only --release` and reopen Xcode. Building with `flutter run`
+     avoids it.
 8. Commit what Xcode created, so it's not lost:
    ```bash
-   git add ios/Runner.xcodeproj "ios/LiveTrainingWatch Watch App" && git commit -m "Add watch target"
+   git pull
+   git add ios/Runner.xcodeproj "ios/LiveTrainingWatch Watch App" && git commit -m "Add watch target" && git push
    ```
    From then on, edit the watch code in `ios/LiveTrainingWatch Watch App/`.
 
