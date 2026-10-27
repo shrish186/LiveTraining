@@ -10,12 +10,13 @@ WHOOP on the wrist (heart rate) ──BLE──► iPhone app ─┘
                                        analysis: merge_sessions.py lines the two up via sync jumps
 ```
 
-Source code is in `mobile/ios/LiveTrainingWatch/`. The iPhone side is `WatchSessionReceiver` in
+Source code is in `mobile/ios/LiveTrainingWatch Watch App/`. The watch target is already in the Xcode project. The iPhone side is `WatchSessionReceiver` in
 `mobile/ios/Runner/AppDelegate.swift`. It saves received files into the Sessions list.
 
-## One-time setup in Xcode (about 10 minutes)
+## One-time setup in Xcode (already done; kept for reference)
 
-Flutter can't create watch targets, so you add one in Xcode once. All the code is already written.
+Flutter can't create watch targets, so this was done once in Xcode and committed. On a fresh clone
+you only need step 6 (Developer Mode) and step 7 (install). The steps below are how the target was created.
 
 1. Open the project:
    ```bash
