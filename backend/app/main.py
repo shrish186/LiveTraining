@@ -39,6 +39,21 @@ def recovery_view(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def cycle_view(record: dict[str, Any]) -> dict[str, Any]:
+    """Flattens a WHOOP v2 cycle (one physiological day) into the fields the app needs."""
+    score = record.get("score") or {}
+    return {
+        "cycle_id": record.get("id"),
+        "start": record.get("start"),
+        "end": record.get("end"),  # null while the day is still running
+        "score_state": record.get("score_state"),
+        "strain": score.get("strain"),
+        "kilojoule": score.get("kilojoule"),
+        "average_heart_rate": score.get("average_heart_rate"),
+        "max_heart_rate": score.get("max_heart_rate"),
+    }
+
+
 def session_view(s: TrainingSession, full: bool = False) -> dict[str, Any]:
     view = {
         "id": s.id,
@@ -221,6 +236,15 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
         require_athlete(athlete_id, db)
         records = whoop.get_collection(athlete_id, "/v2/recovery", start=utcnow() - timedelta(days=days))
         return [recovery_view(r) for r in records]
+
+    @app.get("/athletes/{athlete_id}/whoop/cycle/latest")
+    def latest_cycle(athlete_id: int, db: Session = Depends(get_db)):
+        """Today's WHOOP cycle: day strain so far (0-21), from WHOOP's official API."""
+        require_athlete(athlete_id, db)
+        records = whoop.get_collection(athlete_id, "/v2/cycle", limit=1)
+        if not records:
+            raise HTTPException(404, "no cycle yet")
+        return cycle_view(records[0])
 
     @app.get("/athletes/{athlete_id}/whoop/sleep/latest")
     def latest_sleep(athlete_id: int, db: Session = Depends(get_db)):

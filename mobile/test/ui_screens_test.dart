@@ -17,6 +17,7 @@ import 'package:live_training/coach/live_coach.dart';
 import 'package:live_training/coach/profiles.dart';
 import 'package:live_training/recording/session_recorder.dart';
 import 'package:live_training/services/backend_api.dart';
+import 'package:live_training/services/session_store.dart';
 import 'package:live_training/services/settings_store.dart';
 import 'package:live_training/sources/motion_source.dart';
 import 'package:live_training/sources/whoop_hr_source.dart';
@@ -50,6 +51,16 @@ Future<void> _loadFonts() async {
   }
 }
 
+LocalSession _localSession(String id, DateTime startedAt, int minutes, Map<String, dynamic> summary) =>
+    LocalSession(id, File('$id.csv'), File('$id.json'), {
+      'session_id': id,
+      'sport': 'soccer',
+      'session_type': 'training',
+      'started_at': startedAt.toUtc().toIso8601String(),
+      'duration_ms': minutes * 60000,
+      'summary': summary,
+    });
+
 Future<AppController> _controller({required bool withData}) async {
   SharedPreferences.setMockInitialValues({
     if (withData) 'backend_url': 'http://172.20.10.2:8000',
@@ -74,6 +85,23 @@ Future<AppController> _controller({required bool withData}) async {
     ..state = HrConnection.connected
     ..deviceName = 'WHOOP 5C00599707'
     ..lastBpm = 142;
+  c.dayStrain = DayStrain.fromJson({'score_state': 'SCORED', 'strain': 11.8, 'max_heart_rate': 178});
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  c.sessions = [
+    _localSession('a', today.add(const Duration(hours: 18, minutes: 5)), 42, {
+      'load': 18.4,
+      'efforts': 7,
+      'fatigue_efforts': 2,
+      'hr_max': 178,
+    }),
+    _localSession('b', today.add(const Duration(hours: 7, minutes: 30)), 25, {
+      'load': 6.1,
+      'efforts': 3,
+      'fatigue_efforts': 0,
+      'hr_max': 161,
+    }),
+  ];
   for (var i = 0; i < 600; i++) {
     c.hrHistory.add(128 + 18 * math.sin(i / 40) + 4 * math.sin(i / 7));
   }

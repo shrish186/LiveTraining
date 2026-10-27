@@ -53,6 +53,7 @@ class SessionRecorder {
   Timer? _flushTimer;
   late DateTime _startedAt;
   bool _stopped = false;
+  Map<String, dynamic>? _summary;
 
   /// Row counts per `source/kind`, e.g. `phone/acc`.
   final Map<String, int> counts = {};
@@ -97,8 +98,10 @@ class SessionRecorder {
     _buffered = 0;
   }
 
-  Future<void> stop() async {
+  /// [summary]: what the session amounted to (load, efforts, …), saved in the metadata.
+  Future<void> stop({Map<String, dynamic>? summary}) async {
     if (!isRecording) return;
+    _summary = summary;
     add(const Sample.event('phone', 'session_end'));
     _stopped = true;
     _stopwatch.stop();
@@ -141,9 +144,9 @@ class SessionRecorder {
       'notes': setup.notes,
       'duration_ms': _stopwatch.elapsedMilliseconds,
       'complete': _stopped,
+      'summary': ?_summary,
     };
   }
 
-  Future<void> _writeMetadata() =>
-      metadataFile.writeAsString(const JsonEncoder.withIndent('  ').convert(metadata()));
+  Future<void> _writeMetadata() => metadataFile.writeAsString(const JsonEncoder.withIndent('  ').convert(metadata()));
 }

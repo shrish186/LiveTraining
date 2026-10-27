@@ -52,6 +52,7 @@ class FakeWhoop:
         self.rate_limited = False
         self.reject_next_api_call = False
         self.recovery_pages = [[{"cycle_id": 1, "score_state": "SCORED", "score": {"recovery_score": 66}}]]
+        self.cycle_records: list[dict] = []
         self.requests: list[httpx.Request] = []
         self._lock = threading.Lock()
 
@@ -73,6 +74,8 @@ class FakeWhoop:
             index = int(token) if token else 0
             next_token = str(index + 1) if index + 1 < len(self.recovery_pages) else None
             return httpx.Response(200, json={"records": self.recovery_pages[index], "next_token": next_token})
+        if path == "/v2/cycle":
+            return httpx.Response(200, json={"records": self.cycle_records, "next_token": None})
         if path == "/v2/activity/sleep":
             return httpx.Response(200, json={"records": [{"id": "s1", "score_state": "SCORED"}], "next_token": None})
         return httpx.Response(404)

@@ -224,6 +224,11 @@ While recording, the app makes these calls on the Live tab (the Coach card) and 
 | **Effort N** | Each detected effort, with its length and peak (light buzz) |
 | **Fatigue building** | An effort after the baseline window that is weaker than the early efforts and whose HR recovered slower (the same rule as the analysis) |
 
+**Today card (Home):** WHOOP's day strain (0–21, from the official `/v2/cycle` API, via
+`GET /athletes/{id}/whoop/cycle/latest`) sits in the ring. Next to it are today's totals from
+your sessions: training load, efforts, and whether any fatigue was called. Each session saves
+these numbers in its metadata `summary` when it stops.
+
 Every call is also written to the session file as an event (`call_warmed_up`, `call_fatigue`, and
 so on), so it shows on the analysis plot.
 
@@ -396,9 +401,9 @@ Where the spec was open, I picked the simplest option that works and noted it he
 ## Status
 
 - **Verified in development:**
-  - Backend: 64 tests passing
+  - Backend: 65 tests passing
   - Analysis: 34 tests passing
-  - Flutter: 53 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
+  - Flutter: 57 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
 - **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development

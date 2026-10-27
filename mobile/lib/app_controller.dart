@@ -17,6 +17,7 @@ import 'services/settings_store.dart';
 import 'sources/motion_source.dart';
 import 'sources/phone_motion_source.dart';
 import 'sources/whoop_hr_source.dart';
+import 'util/day_summary.dart';
 import 'util/live_stats.dart';
 import 'util/motion.dart';
 
@@ -68,6 +69,10 @@ class AppController extends ChangeNotifier {
   SportProfiles? _profiles;
   LiveCoach? coach;
   final List<CoachCall> calls = [];
+
+  // Today card: WHOOP day strain plus our sessions of the day
+  DayStrain? dayStrain;
+  DaySummary get today => DaySummary.of(sessions.map((s) => s.dayEntry).whereType<DayEntry>(), DateTime.now());
 
   // Recording
   SessionRecorder? recorder;
@@ -232,10 +237,17 @@ class AppController extends ChangeNotifier {
     recoveryLoading = true;
     notifyListeners();
     try {
-      recovery = await api.latestRecovery(id);
-      recoveryError = null;
-    } on BackendException catch (e) {
-      recoveryError = e.message;
+      try {
+        recovery = await api.latestRecovery(id);
+        recoveryError = null;
+      } on BackendException catch (e) {
+        recoveryError = e.message;
+      }
+      try {
+        dayStrain = await api.latestCycle(id);
+      } on BackendException {
+        dayStrain = null; // the Today card still shows our own numbers
+      }
     } finally {
       recoveryLoading = false;
       notifyListeners();
@@ -288,11 +300,21 @@ class AppController extends ChangeNotifier {
   Future<void> stopSession() async {
     final r = recorder;
     if (r == null) return;
-    await r.stop();
+    final c = coach;
+    await r.stop(
+      summary: SessionSummary(
+        load: stats.load,
+        efforts: c?.efforts.length ?? 0,
+        fatigueEfforts: c?.efforts.where((e) => e.fatigue).length ?? 0,
+        hrAvg: stats.hrAvg,
+        hrMax: stats.hrMax,
+      ).toJson(),
+    );
     coach = null;
     await WakelockPlus.disable();
     notes = '';
     await refreshSessions();
+    unawaited(refreshRecovery()); // WHOOP's day strain has moved
     notifyListeners();
   }
 

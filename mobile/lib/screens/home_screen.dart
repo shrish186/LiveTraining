@@ -5,6 +5,7 @@ import '../app_controller.dart';
 import '../coach/live_coach.dart';
 import '../config.dart';
 import '../sources/whoop_hr_source.dart';
+import '../util/day_summary.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 
@@ -47,6 +48,8 @@ class HomeScreen extends StatelessWidget {
               _MotionCard(controller: controller),
             ] else ...[
               _RecoveryCard(controller: controller, onOpenSettings: onOpenSettings),
+              const SizedBox(height: 12),
+              _TodayCard(controller: controller),
               const SizedBox(height: 12),
               _HeartRateCard(controller: controller),
               const SizedBox(height: 12),
@@ -207,6 +210,120 @@ class _RecoveryCard extends StatelessWidget {
   }
 }
 
+/// WHOOP-style day view: WHOOP's day strain in the ring, our training numbers next to it.
+class _TodayCard extends StatelessWidget {
+  const _TodayCard({required this.controller});
+
+  final AppController controller;
+
+  static const maxStrain = 21.0; // WHOOP's strain scale
+
+  String _minutes(Duration d) => d.inMinutes < 1 && d > Duration.zero ? '<1' : '${d.inMinutes}';
+
+  @override
+  Widget build(BuildContext context) {
+    final day = controller.today;
+    final strain = controller.dayStrain?.strain;
+    final (fatigueColor, fatigueText) = switch ((day.sessions, day.fatigue)) {
+      (0, _) => (AppColors.textFaint, 'No sessions yet today'),
+      (_, FatigueStatus.building) => (
+        AppColors.warning,
+        'Fatigue building in ${day.fatigueEfforts} effort${day.fatigueEfforts == 1 ? '' : 's'}',
+      ),
+      _ => (AppColors.good, 'No fatigue signs today'),
+    };
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionLabel(
+            'Today',
+            trailing: Flexible(
+              child: Text(
+                '${day.sessions} session${day.sessions == 1 ? '' : 's'} · ${_minutes(day.trainingTime)} min',
+                style: AppText.dim,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              RingGauge(
+                value: strain == null ? 0 : strain / maxStrain,
+                color: AppColors.accent,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(strain?.toStringAsFixed(1) ?? '—', style: AppText.big.copyWith(fontSize: 40)),
+                    const SizedBox(height: 2),
+                    Text(strain == null ? 'NO STRAIN' : 'DAY STRAIN', style: AppText.label.copyWith(fontSize: 9)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _MiniStat(label: 'Training load', value: day.load.toStringAsFixed(1), unit: ''),
+                    const SizedBox(height: 14),
+                    _MiniStat(label: 'Efforts', value: '${day.efforts}', unit: ''),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: fatigueColor, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(fatigueText, style: AppText.body)),
+            ],
+          ),
+          for (final e in day.entries.reversed.take(4)) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text(
+                  '${e.startedAt.hour.toString().padLeft(2, '0')}:${e.startedAt.minute.toString().padLeft(2, '0')}',
+                  style: AppText.dim,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${prettySlug(e.sport)} · ${_minutes(e.duration)} min',
+                    style: AppText.dim,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Flexible(
+                  child: Text(
+                    e.summary == null
+                        ? ''
+                        : 'load ${e.summary!.load.toStringAsFixed(1)}'
+                              '${e.summary!.fatigueEfforts > 0 ? ' · fatigue' : ''}',
+                    style: AppText.dim.copyWith(
+                      color: (e.summary?.fatigueEfforts ?? 0) > 0 ? AppColors.warning : AppColors.textDim,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _MiniStat extends StatelessWidget {
   const _MiniStat({required this.label, required this.value, required this.unit});
 
@@ -225,7 +342,7 @@ class _MiniStat extends StatelessWidget {
           TextSpan(
             children: [
               TextSpan(text: value, style: AppText.stat),
-              TextSpan(text: ' $unit', style: AppText.unit),
+              if (unit.isNotEmpty) TextSpan(text: ' $unit', style: AppText.unit),
             ],
           ),
         ),

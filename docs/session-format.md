@@ -114,6 +114,7 @@ t_ms,source,kind,x,y,z,value
 | `placement` | no | where the motion sensor was worn: `ankle`, `shin`, `thigh`, `wrist`, `waist`, `chest`, `upper_arm`, `phone_armband`, `phone_pocket`, … |
 | `notes` | no | free text |
 | `duration_ms` | no | written by the app at stop |
+| `summary` | no | written by the app at stop: `{load, efforts, fatigue_efforts, hr_avg, hr_max}`. `load` is the motion load in (m/s²)·min; `efforts` and `fatigue_efforts` come from the live coach. Feeds the Today card |
 | `complete` | no | `false` while recording. A session that stays `false` was cut short (app killed), but its CSV is still valid up to that point. |
 
 Unknown extra fields are allowed and preserved.

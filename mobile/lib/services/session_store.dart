@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
+import '../util/day_summary.dart';
+
 class LocalSession {
   LocalSession(this.id, this.csv, this.metadataFile, this.metadata);
 
@@ -17,9 +19,15 @@ class LocalSession {
   Duration get duration => Duration(milliseconds: (metadata['duration_ms'] as num?)?.toInt() ?? 0);
   bool get complete => metadata['complete'] as bool? ?? true;
 
+  SessionSummary? get summary => SessionSummary.fromJson(metadata['summary']);
+
+  DayEntry? get dayEntry {
+    final t = startedAt;
+    return t == null ? null : DayEntry(startedAt: t, duration: duration, sport: sport, summary: summary);
+  }
+
   /// True for sessions recorded by the Apple Watch app and received from the watch.
-  bool get fromWatch =>
-      (metadata['sources'] as List? ?? const []).any((s) => s is Map && s['id'] == 'apple_watch');
+  bool get fromWatch => (metadata['sources'] as List? ?? const []).any((s) => s is Map && s['id'] == 'apple_watch');
 }
 
 /// Sessions recorded on this device, in `<app documents>/sessions/`.

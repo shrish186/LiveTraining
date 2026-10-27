@@ -13,13 +13,13 @@ void main() {
   tearDown(() async => dir.delete(recursive: true));
 
   SessionRecorder make() => SessionRecorder(
-        directory: dir,
-        sessionId: '4f6c2b0e-3f7a-4d2f-9f0e-6a1f5d2b7c11',
-        setup: const SessionSetup(sport: 'soccer', sessionType: 'drill', placement: 'shin', athleteId: 3),
-        appVersion: '0.1.0',
-        deviceModel: 'test',
-        clock: () => DateTime.utc(2026, 10, 27, 18, 2, 11, 456),
-      );
+    directory: dir,
+    sessionId: '4f6c2b0e-3f7a-4d2f-9f0e-6a1f5d2b7c11',
+    setup: const SessionSetup(sport: 'soccer', sessionType: 'drill', placement: 'shin', athleteId: 3),
+    appVersion: '0.1.0',
+    deviceModel: 'test',
+    clock: () => DateTime.utc(2026, 10, 27, 18, 2, 11, 456),
+  );
 
   test('writes a valid CSV and metadata JSON', () async {
     final r = make();
@@ -60,6 +60,15 @@ void main() {
     expect(sources['whoop_hr']['kinds'], ['hr', 'rr']);
     expect(r.count('phone', 'acc'), 1200);
     expect(r.events, ['session_start', 'sync_jumps', 'session_end']);
+  });
+
+  test('saves the session summary in the metadata at stop', () async {
+    final r = make();
+    await r.start();
+    expect(jsonDecode(r.metadataFile.readAsStringSync()).containsKey('summary'), isFalse);
+    await r.stop(summary: {'load': 12.5, 'efforts': 4, 'fatigue_efforts': 1});
+    final meta = jsonDecode(r.metadataFile.readAsStringSync()) as Map<String, dynamic>;
+    expect(meta['summary'], {'load': 12.5, 'efforts': 4, 'fatigue_efforts': 1});
   });
 
   test('ignores samples before start', () async {

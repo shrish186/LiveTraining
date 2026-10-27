@@ -7,12 +7,12 @@ import '../util/error_messages.dart';
 
 class Recovery {
   Recovery.fromJson(Map<String, dynamic> j)
-      : scoreState = j['score_state'] as String?,
-        recoveryScore = (j['recovery_score'] as num?)?.toDouble(),
-        restingHr = (j['resting_heart_rate'] as num?)?.toDouble(),
-        hrvMs = (j['hrv_rmssd_milli'] as num?)?.toDouble(),
-        calibrating = j['user_calibrating'] as bool? ?? false,
-        createdAt = DateTime.tryParse(j['created_at'] as String? ?? '');
+    : scoreState = j['score_state'] as String?,
+      recoveryScore = (j['recovery_score'] as num?)?.toDouble(),
+      restingHr = (j['resting_heart_rate'] as num?)?.toDouble(),
+      hrvMs = (j['hrv_rmssd_milli'] as num?)?.toDouble(),
+      calibrating = j['user_calibrating'] as bool? ?? false,
+      createdAt = DateTime.tryParse(j['created_at'] as String? ?? '');
 
   final String? scoreState;
   final double? recoveryScore;
@@ -20,6 +20,22 @@ class Recovery {
   final double? hrvMs;
   final bool calibrating;
   final DateTime? createdAt;
+}
+
+/// Today's WHOOP cycle: day strain (0-21) so far.
+class DayStrain {
+  DayStrain.fromJson(Map<String, dynamic> j)
+    : scoreState = j['score_state'] as String?,
+      strain = (j['strain'] as num?)?.toDouble(),
+      averageHr = (j['average_heart_rate'] as num?)?.toDouble(),
+      maxHr = (j['max_heart_rate'] as num?)?.toDouble(),
+      start = DateTime.tryParse(j['start'] as String? ?? '');
+
+  final String? scoreState;
+  final double? strain;
+  final double? averageHr;
+  final double? maxHr;
+  final DateTime? start;
 }
 
 class BackendException implements Exception {
@@ -75,13 +91,23 @@ class BackendApi {
     _fail(r, path, athleteId: athleteId);
   }
 
+  Future<DayStrain> latestCycle(int athleteId) async {
+    final path = '/athletes/$athleteId/whoop/cycle/latest';
+    final uri = _uri(path);
+    final r = await _call(() => _client.get(uri).timeout(_timeout));
+    if (r.statusCode == 200) return DayStrain.fromJson(jsonDecode(r.body) as Map<String, dynamic>);
+    if (r.statusCode == 404 && _detail(r) == 'no cycle yet') throw BackendException('WHOOP has no day strain yet.');
+    _fail(r, path, athleteId: athleteId);
+  }
+
   Future<UploadResult> uploadSession(File csv, File metadata) async {
     final uri = _uri('/sessions');
     final request = http.MultipartRequest('POST', uri)
       ..fields['metadata'] = await metadata.readAsString()
       ..files.add(await http.MultipartFile.fromPath('file', csv.path, filename: csv.uri.pathSegments.last));
     final r = await _call(
-        () async => http.Response.fromStream(await _client.send(request).timeout(const Duration(minutes: 5))));
+      () async => http.Response.fromStream(await _client.send(request).timeout(const Duration(minutes: 5))),
+    );
     if (r.statusCode == 201) return UploadResult.uploaded;
     if (r.statusCode == 409) return UploadResult.alreadyUploaded;
     _fail(r, '/sessions');

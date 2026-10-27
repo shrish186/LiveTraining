@@ -131,6 +131,18 @@ def test_recovery_endpoints(client, fake_whoop, athlete_id):
     assert client.get(f"/athletes/{athlete_id}/whoop/sleep/latest").json()["id"] == "s1"
 
 
+def test_latest_cycle(client, fake_whoop, athlete_id):
+    assert client.get(f"/athletes/{athlete_id}/whoop/cycle/latest").status_code == 404
+    fake_whoop.cycle_records = [{
+        "id": 93845, "start": "2026-10-27T06:12:00Z", "end": None, "score_state": "SCORED",
+        "score": {"strain": 9.4, "kilojoule": 7300.5, "average_heart_rate": 71, "max_heart_rate": 168},
+    }]
+    day = client.get(f"/athletes/{athlete_id}/whoop/cycle/latest").json()
+    assert day == {"cycle_id": 93845, "start": "2026-10-27T06:12:00Z", "end": None, "score_state": "SCORED",
+                   "strain": 9.4, "kilojoule": 7300.5, "average_heart_rate": 71, "max_heart_rate": 168}
+    assert fake_whoop.requests[-1].url.params["limit"] == "1"
+
+
 def test_endpoint_returns_429_with_retry_after(client, fake_whoop, athlete_id):
     fake_whoop.rate_limited = True
     r = client.get(f"/athletes/{athlete_id}/whoop/recovery/latest")
