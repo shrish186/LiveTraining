@@ -1,6 +1,7 @@
 import html
 import json
 import shutil
+import socket
 import tempfile
 from datetime import timedelta
 from pathlib import Path
@@ -60,21 +61,39 @@ def session_view(s: TrainingSession, full: bool = False) -> dict[str, Any]:
     return view
 
 
+def lan_ip() -> str | None:
+    """This machine's LAN address, the one a phone on the same Wi-Fi can reach. No packets are sent."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            ip = s.getsockname()[0]
+    except OSError:
+        return None
+    return None if ip.startswith("127.") else ip
+
+
 def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
     return HTMLResponse(
         f"<!doctype html><html><head><meta charset='utf-8'>"
         f"<meta name='viewport' content='width=device-width, initial-scale=1'>"
         f"<title>{html.escape(title)}</title>"
-        f"<style>body{{font-family:system-ui,sans-serif;max-width:32rem;margin:3rem auto;padding:0 1rem;line-height:1.5}}"
-        f"code{{font-size:1.4rem;background:#eee;padding:.1rem .4rem;border-radius:4px}}</style></head>"
+        f"<style>body{{font-family:system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem;line-height:1.5}}"
+        f"code{{font-size:1.4rem;background:#eee;padding:.1rem .4rem;border-radius:4px}}"
+        f"table{{border-collapse:collapse;width:100%}}td,th{{text-align:left;padding:.4rem;border-bottom:1px solid #ddd}}"
+        f".btn{{display:inline-block;background:#0b7285;color:#fff;padding:.6rem 1rem;border-radius:6px;"
+        f"text-decoration:none}}</style></head>"
         f"<body>{body}</body></html>",
         status_code=status,
     )
 
 
 def create_app(settings: Settings | None = None, transport: httpx.BaseTransport | None = None) -> FastAPI:
-    """App factory. Tests pass their own Settings and an httpx.MockTransport."""
+    """App factory. Tests pass their own Settings and an httpx.MockTransport.
+
+    Fails fast (MissingWhoopCredentials) if the WHOOP client ID or secret is missing.
+    """
     settings = settings or Settings.from_env()
+    settings.require_whoop_credentials()
     sessions_dir = settings.data_dir / "sessions"
     sessions_dir.mkdir(parents=True, exist_ok=True)
     db_factory = make_sessionmaker(make_engine(settings.database_url))
@@ -103,13 +122,37 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
     def health():
         return {"status": "ok"}
 
+    @app.get("/", response_class=HTMLResponse)
+    def index(request: Request, db: Session = Depends(get_db)):
+        configured = "yes" if not settings.missing_credentials() else "no"
+        ip, port = lan_ip(), request.url.port or 8000
+        app_url = f"http://{ip}:{port}" if ip else "unknown (run backend/run_dev.sh to see it)"
+        connected = set(db.scalars(select(WhoopToken.athlete_id)))
+        athletes = list(db.scalars(select(Athlete).order_by(Athlete.id)))
+        rows = "".join(
+            f"<tr><td><code>{a.id}</code></td><td>{html.escape(a.name or '(no name)')}</td>"
+            f"<td>{'yes' if a.id in connected else 'no, reconnect'}</td></tr>"
+            for a in athletes
+        )
+        table = (f"<table><tr><th>Athlete ID</th><th>Name</th><th>WHOOP connected</th></tr>{rows}</table>"
+                 if athletes else "<p>No athletes yet. Connect WHOOP below.</p>")
+        session_count = len(db.scalars(select(TrainingSession.id)).all())
+        return _page("Live Training backend", f"""
+            <h1>Live Training backend</h1>
+            <p>Server is running.</p>
+            <p>WHOOP credentials configured: <b>{configured}</b><br>
+               Redirect URL (must match your WHOOP app): <code style="font-size:1rem">
+               {html.escape(settings.whoop_redirect_uri)}</code></p>
+            <p>Backend URL to type into the app: <code>{html.escape(app_url)}</code></p>
+            <p><a class="btn" href="/auth/whoop/login">Connect WHOOP</a></p>
+            <h2>Athletes</h2>{table}
+            <p>Copy your Athlete ID into the app under Settings.</p>
+            <p>Sessions uploaded: {session_count} · <a href="/docs">API docs</a></p>""")
+
     # ---- WHOOP OAuth -------------------------------------------------------
 
     @app.get("/auth/whoop/login")
     def whoop_login(db: Session = Depends(get_db)):
-        if not settings.whoop_client_id or not settings.whoop_client_secret:
-            return _page("Not configured", "<h1>WHOOP not configured</h1><p>Set WHOOP_CLIENT_ID and "
-                         "WHOOP_CLIENT_SECRET in backend/.env and restart the server.</p>", 500)
         db.execute(delete(OAuthState).where(OAuthState.created_at < utcnow() - STATE_TTL))
         state = new_state()
         db.add(OAuthState(state=state))

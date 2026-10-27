@@ -65,21 +65,24 @@ Development access allows up to 10 WHOOP members per app.
 
 ## 2. Run the backend on your laptop
 
-Needs Python 3.11 or newer.
+Needs Python 3.11 or newer. macOS's built-in `python3` is 3.9; install a newer one with
+`brew install python@3.12`.
 
 ```bash
 cd backend
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
 cp .env.example .env            # then edit .env: WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET
-pytest                          # 53 tests, no network needed
-uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000
+./run_dev.sh                    # creates .venv, installs deps, prints the URL for the app, starts the server
 ```
 
-- `--host 0.0.0.0` lets your phone reach the laptop over Wi-Fi. If macOS asks whether to allow
-  incoming connections for Python, click **Allow**.
-- Check that it works: <http://localhost:8000/health> returns `{"status":"ok"}`. API docs are at
+- `run_dev.sh` listens on `0.0.0.0:8000` so your phone can reach the Mac over Wi-Fi, and prints the
+  exact backend URL to type into the app (e.g. `http://192.168.1.23:8000`). If macOS asks whether
+  to allow incoming connections for Python, click **Allow**.
+- The server refuses to start if `WHOOP_CLIENT_ID` or `WHOOP_CLIENT_SECRET` is missing.
+- <http://localhost:8000> shows a status page: server running, credentials configured yes/no, a
+  Connect WHOOP button, and connected athletes with their IDs. API docs are at
   <http://localhost:8000/docs>.
+- Tests: `.venv/bin/pytest` (58 tests, no network needed). To start manually:
+  `.venv/bin/uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000`.
 - Data is stored in `backend/data/` (SQLite DB and uploaded sessions; gitignored). For Postgres, set
   `DATABASE_URL=postgresql+psycopg://user:pass@host/db` and `pip install "psycopg[binary]"`.
 - Run a single worker (the default). See Decisions #4.
@@ -197,7 +200,7 @@ The recorder, upload and analysis don't change.
 ## Tests
 
 ```bash
-cd backend  && pytest          # CSV validation, upload/listing, OAuth state, token refresh (httpx.MockTransport)
+cd backend  && .venv/bin/pytest # CSV validation, upload/listing, OAuth state, token refresh (httpx.MockTransport)
 cd analysis && pytest          # effort detection, HR recovery, fatigue rule, profiles, end-to-end on synthetic data
 cd mobile   && flutter test    # heart-rate parser, CSV rows, recorder, motion magnitude
 ```
@@ -289,7 +292,7 @@ Where the spec was open, I picked the simplest option that works and noted it he
 ## Status
 
 - **Verified in development:**
-  - Backend: 53 tests passing
+  - Backend: 58 tests passing
   - Analysis: 15 tests passing
   - Flutter: 21 tests passing, `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download

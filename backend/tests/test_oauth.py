@@ -1,7 +1,11 @@
+import dataclasses
 from datetime import timedelta
 from urllib.parse import parse_qs, urlparse
 
-from app.config import WHOOP_SCOPES
+import pytest
+
+from app.config import WHOOP_SCOPES, MissingWhoopCredentials
+from app.main import create_app
 from app.models import Athlete, OAuthState, WhoopToken, utcnow
 from app.whoop import new_state, state_is_fresh
 
@@ -90,15 +94,15 @@ def test_callback_shows_whoop_error(client):
     assert "User said no" in r.text
 
 
-def test_login_without_credentials(settings, fake_whoop):
-    import dataclasses
+@pytest.mark.parametrize("field", ["whoop_client_id", "whoop_client_secret"])
+def test_startup_fails_fast_without_credentials(settings, field):
+    with pytest.raises(MissingWhoopCredentials) as exc:
+        create_app(dataclasses.replace(settings, **{field: "  "}))
+    assert field.upper() in str(exc.value)
 
-    import httpx
-    from fastapi.testclient import TestClient
 
-    from app.main import create_app
-
-    app = create_app(dataclasses.replace(settings, whoop_client_id=""), transport=httpx.MockTransport(fake_whoop))
-    r = TestClient(app, follow_redirects=False).get("/auth/whoop/login")
-    assert r.status_code == 500
-    assert "not configured" in r.text
+def test_error_never_contains_secret_value(settings):
+    with pytest.raises(MissingWhoopCredentials) as exc:
+        create_app(dataclasses.replace(settings, whoop_client_id="", whoop_client_secret="s3cr3t-value"))
+    assert "s3cr3t-value" not in str(exc.value)
+    assert "WHOOP_CLIENT_ID" in str(exc.value)
