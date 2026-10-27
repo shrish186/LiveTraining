@@ -35,7 +35,7 @@ Unused columns are left **empty** (not `0`, not `NaN`).
 | `whoop_hr` | WHOOP strap via its built-in Heart Rate Broadcast (standard BLE Heart Rate service 0x180D) |
 | `movesense` | Movesense sensor (planned) |
 | `xiao` | Seeed XIAO nRF52840 Sense (planned) |
-| `apple_watch` | Apple Watch app (`mobile/ios/LiveTrainingWatch`): acc, gyro, hr. Worn on the wrist or strapped to the lower leg |
+| `apple_watch` | Apple Watch app (`mobile/ios/LiveTrainingWatch Watch App`): acc, gyro, hr. Worn on the wrist or strapped to the lower leg. Appears in the watch's own session file, and in the phone's session when the watch streams live (acc only, ~100 Hz) |
 | `polar` | Polar sensor (planned) |
 
 `event` rows use the source of the device whose button was pressed (`phone`, or `apple_watch` on the watch).
@@ -58,6 +58,8 @@ Labels must not contain commas, quotes or newlines. The app replaces these with 
 
 ### Rules
 
+- A source that delivers in batches (the live watch stream) stamps each row at the time it was measured: the phone's
+  clock at arrival minus the sample's age as reported by the device. Such rows can be slightly out of order.
 - Rows are written in the order they arrive. `t_ms` is *nearly* sorted across streams but readers must not
   rely on strict ordering. Sort by `t_ms` if you need to.
 - Different sources have different rates. A reader should never assume a row exists at every millisecond, or that streams are aligned.
@@ -114,7 +116,7 @@ t_ms,source,kind,x,y,z,value
 | `placement` | no | where the motion sensor was worn: `ankle`, `shin`, `thigh`, `wrist`, `waist`, `chest`, `upper_arm`, `phone_armband`, `phone_pocket`, … |
 | `notes` | no | free text |
 | `duration_ms` | no | written by the app at stop |
-| `summary` | no | written by the app at stop: `{load, efforts, fatigue_efforts, hr_avg, hr_max}`. `load` is the motion load in (m/s²)·min; `efforts` and `fatigue_efforts` come from the live coach. Feeds the Today card |
+| `summary` | no | written by the app at stop: `{load, efforts, fatigue_efforts, hr_avg, hr_max}`, plus `impact_load` (sum of footstrike peaks, g) and `strikes` when the motion came from a leg sensor. `load` is the motion load in (m/s²)·min; `efforts` and `fatigue_efforts` come from the live coach. Feeds the Today card |
 | `complete` | no | `false` while recording. A session that stays `false` was cut short (app killed), but its CSV is still valid up to that point. |
 
 Unknown extra fields are allowed and preserved.

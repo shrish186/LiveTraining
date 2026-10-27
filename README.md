@@ -224,6 +224,18 @@ While recording, the app makes these calls on the Live tab (the Coach card) and 
 | **Effort N** | Each detected effort, with its length and peak (light buzz) |
 | **Fatigue building** | An effort after the baseline window that is weaker than the early efforts and whose HR recovered slower (the same rule as the analysis) |
 
+**Step metrics (leg sensor):** for ankle or shin sessions, `analyze_session.py` also reports the
+sensor leg's footstrikes, impact load (sum of peak g, and a g²-weighted version that counts hard
+hits more), median stride time, standing-jump height from flight time (your sync jumps double as a
+jump test), and form drift (last efforts against the first: strike peak %, stride time, stride
+variability). The app counts footstrikes and impact load live too, and the Today card adds them up.
+These are load and form numbers. The app makes no injury or medical claims.
+
+**Live calls from the leg:** with our watch app on the ankle streaming to the phone, the coach
+uses the leg instead of the phone. See [docs/apple-watch.md](docs/apple-watch.md).
+
+**Field test protocol:** [docs/test-plan.md](docs/test-plan.md).
+
 **Today card (Home):** WHOOP's day strain (0–21, from the official `/v2/cycle` API, via
 `GET /athletes/{id}/whoop/cycle/latest`) sits in the ring. Next to it are today's totals from
 your sessions: training load, efforts, and whether any fatigue was called. Each session saves
@@ -394,6 +406,18 @@ Where the spec was open, I picked the simplest option that works and noted it he
 37. **Accuracy is checked against the athlete's own Mark taps**, because there is no ground truth
     otherwise. A tap counts for an effort when it falls between 5 s before the effort starts and 15 s
     after it ends. The validation tool only suggests a threshold. Profiles change by hand.
+39. **Footstrikes use total |acc| in g, not the gravity-removed magnitude,** because impact is
+    conventionally reported that way (standing = 1 g). A strike is a peak above `min_peak_g` with no
+    stronger peak within `min_interval_s`. That drops the other foot's landing, which the sensor also
+    feels. Tuned on a real ankle session (sprint strides ~600 ms, own-foot peaks 10–14 g, other foot ~5 g).
+40. **Impact peaks need a fast sensor.** At 100 Hz (SensorLog, the live stream) peaks fall between
+    samples and read low; the watch app's 800 Hz file is the accurate one. Impact load is still
+    consistent between sessions at the same rate.
+41. **Jump height uses flight time** (h = g t²/8), with quiet stance required before and after so
+    running strides don't count. Ankle flight time is approximate for small hops.
+42. **Live watch stream:** WatchConnectivity messages, dropped (not queued) when the iPhone isn't
+    reachable, because stale motion is useless for live calls and the watch file keeps everything.
+    Each sample's age (watch clock) places it in time on the phone, so 0.5 s batches don't smear it.
 38. **SensorLog imports use the `apple_watch` source.** It is the same device, so the session
     format doesn't change. `device_model` says "Apple Watch (SensorLog)". The import keeps only
     acc and rotation rate. It drops location and SensorLog's heart rate, because WHOOP supplies HR.
@@ -402,8 +426,8 @@ Where the spec was open, I picked the simplest option that works and noted it he
 
 - **Verified in development:**
   - Backend: 65 tests passing
-  - Analysis: 34 tests passing
-  - Flutter: 57 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
+  - Analysis: 41 tests passing
+  - Flutter: 64 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
 - **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development

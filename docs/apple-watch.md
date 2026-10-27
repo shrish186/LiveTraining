@@ -91,6 +91,21 @@ you only need step 6 (Developer Mode) and step 7 (install). The steps below are 
 7. Keep the phone nearby with the app open. The watch sends its files in the background, and the
    session appears in the **Sessions** tab tagged **Apple Watch**. Upload both sessions.
 
+## Live calls from the leg
+
+While the watch app records and the iPhone app is open, the watch also streams its accelerometer
+(about 100 Hz, every 0.5 s) to the iPhone. The watch shows **Live to iPhone** with a green dot.
+On the phone, the Motion card then says **Watch · Ankle**, and the live calls (efforts, impact
+load) come from your leg instead of the phone in your pocket.
+
+- The session on the phone then already contains the leg motion (source `apple_watch`) with WHOOP
+  heart rate, so you don't need `merge_sessions.py` for live sessions. The watch's own full-rate
+  file (up to 800 Hz) still reaches the iPhone afterwards, for detailed impact analysis.
+- Start the watch first, check the green dot, then tap Start on the phone. The phone session takes
+  the watch's placement (e.g. `ankle`) for its thresholds.
+- If the dot is grey, the iPhone app isn't open or in reach. The watch keeps recording, and the
+  phone falls back to its own motion.
+
 ## No watch app yet? Record with SensorLog
 
 Until our watch app is installed, the App Store app **SensorLog** works as the leg sensor at

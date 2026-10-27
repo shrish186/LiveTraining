@@ -46,6 +46,11 @@ logic and the sport profiles.
   coach reads it). Edit the root file, then copy it; a test fails if they differ.
 - The live coach (`mobile/lib/coach/live_coach.dart`) mirrors `analysis/ltlib/core.py`. After an
   analysis change, run `python make_parity_fixture.py` and keep `coach_parity_test.dart` passing.
+- Step metrics (footstrikes, impact load, jumps, form drift) live in `analysis/ltlib/steps.py`; the app's
+  `mobile/lib/coach/strikes.dart` is its streaming twin. Both read the profile's `steps`/`impact`/`jumps` blocks
+  and only run for leg placements listed in `steps.placements`.
+- While our watch app streams live motion, the phone's coach uses the leg (source `apple_watch`) instead of the
+  phone. Batched samples carry their age (`Sample.ageMs`) so the recorder stamps them when measured.
 - Live calls are written to the session as `call_*` events. Accuracy is checked with
   `analysis/validate_session.py` against the athlete's `mark` events.
 - WHOOP token refresh invalidates the old access and refresh tokens. Always persist the new refresh
