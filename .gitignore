@@ -1,7 +1,17 @@
 # Secrets — never commit
 .env
 *.env
+.env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+*.keystore
+*.jks
+key.properties
 
 # Python
 __pycache__/
@@ -26,6 +36,9 @@ mobile/.dart_tool/
 mobile/build/
 mobile/.flutter-plugins
 mobile/.flutter-plugins-dependencies
+
+# Xcode per-user data
+xcuserdata/
 
 # OS / editors
 .DS_Store
