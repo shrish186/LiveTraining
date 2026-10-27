@@ -7,6 +7,8 @@ import WatchConnectivity
 final class PhoneTransfer: NSObject, ObservableObject, WCSessionDelegate {
     @Published private(set) var pending = 0
     @Published private(set) var lastMessage: String?
+    /// True while the iPhone app is running and can receive live motion.
+    @Published private(set) var phoneReachable = false
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -36,6 +38,14 @@ final class PhoneTransfer: NSObject, ObservableObject, WCSessionDelegate {
         updatePending()
     }
 
+    /// Live motion for the iPhone's coach. Dropped (not queued) when the iPhone app isn't reachable:
+    /// stale motion is useless for live calls, and the session file keeps everything anyway.
+    func sendLive(_ batch: [String: Any]) {
+        let session = WCSession.default
+        guard session.activationState == .activated, session.isReachable else { return }
+        session.sendMessage(batch, replyHandler: nil, errorHandler: nil)
+    }
+
     private static func isComplete(_ json: URL) -> Bool {
         guard let data = try? Data(contentsOf: json),
               let meta = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
@@ -52,6 +62,13 @@ final class PhoneTransfer: NSObject, ObservableObject, WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
                  error: Error?) {
         if activationState == .activated { sendAll() }
+        let reachable = session.isReachable
+        DispatchQueue.main.async { self.phoneReachable = reachable }
+    }
+
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        let reachable = session.isReachable
+        DispatchQueue.main.async { self.phoneReachable = reachable }
     }
 
     func session(_ session: WCSession, didFinish fileTransfer: WCSessionFileTransfer, error: Error?) {

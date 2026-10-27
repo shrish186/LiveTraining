@@ -63,6 +63,7 @@ struct SetupView: View {
 
 struct RecordingView: View {
     @EnvironmentObject var recorder: WatchRecorder
+    @EnvironmentObject var transfer: PhoneTransfer
     @State private var confirmStop = false
 
     private var clock: String {
@@ -89,6 +90,11 @@ struct RecordingView: View {
                     Text("BPM").font(.caption2).foregroundStyle(.secondary)
                     Spacer()
                     Text(recorder.accRateHz.map { "\($0) Hz" } ?? "— Hz").font(.caption2).monospacedDigit().foregroundStyle(.secondary)
+                }
+                HStack(spacing: 4) {
+                    Circle().fill(transfer.phoneReachable ? .green : .gray).frame(width: 6, height: 6)
+                    Text(transfer.phoneReachable ? "Live to iPhone" : "iPhone app not open")
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
                 HStack {
                     Button("Sync") { recorder.mark("sync_jumps") }

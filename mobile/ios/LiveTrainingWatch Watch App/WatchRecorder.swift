@@ -44,6 +44,18 @@ final class WatchRecorder: NSObject, ObservableObject {
     /// Called after a session's files are complete (the app sends them to the iPhone).
     var onFinished: (() -> Void)?
 
+    /// Called about every 0.5 s while recording with the latest accelerometer samples, thinned to
+    /// ~100 Hz, for the iPhone's live coach. The full-rate data still goes to the session file.
+    var onLiveBatch: (([String: Any]) -> Void)?
+    static let liveRateHz = 100
+    private var liveT: [Double] = []
+    private var liveX: [Double] = []
+    private var liveY: [Double] = []
+    private var liveZ: [Double] = []
+    private var liveEvery = 1
+    private var liveCounter = 0
+    private var livePlacement = "ankle"
+
     private let healthStore = HKHealthStore()
     private var workout: HKWorkoutSession?
     private var builder: HKLiveWorkoutBuilder?
@@ -114,9 +126,13 @@ final class WatchRecorder: NSObject, ObservableObject {
             startDate = Date()
             startUptime = ProcessInfo.processInfo.systemUptime
             durationMs = 0
+            let chosenPlacement = placement
             io.sync {
                 writer = newWriter
                 newWriter.event(0, Self.source, "session_start")
+                livePlacement = chosenPlacement
+                liveCounter = 0
+                liveT.removeAll(); liveX.removeAll(); liveY.removeAll(); liveZ.removeAll()
             }
 
             session.startActivity(with: startDate)
@@ -189,14 +205,17 @@ final class WatchRecorder: NSObject, ObservableObject {
             DispatchQueue.main.async { self.status = "800 Hz not supported here, using 100 Hz" }
         }
         actualRateHz = 100
+        io.sync { liveEvery = 1 }
         motion.accelerometerUpdateInterval = 1.0 / 100
         motion.deviceMotionUpdateInterval = 1.0 / 100
         motion.startAccelerometerUpdates(to: motionQueue) { [weak self] data, _ in
             guard let self, let data else { return }
             let a = data.acceleration
             let t = self.tMs(uptime: data.timestamp)
+            let uptime = data.timestamp
             self.io.async {
                 self.writer?.vector(t, Self.source, "acc", a.x * Self.gravity, a.y * Self.gravity, a.z * Self.gravity)
+                self.bufferLive(uptime, a.x, a.y, a.z)
             }
         }
         if motion.isDeviceMotionAvailable {
@@ -213,16 +232,18 @@ final class WatchRecorder: NSObject, ObservableObject {
     @available(watchOS 10.0, *)
     private func startBatched() {
         actualRateHz = 800
+        io.sync { liveEvery = 800 / Self.liveRateHz }
         let manager = CMBatchedSensorManager()
         batchedManager = manager
         batchTasks.append(Task.detached { [weak self] in
             do {
                 for try await batch in manager.accelerometerUpdates() {
                     guard let self else { return }
-                    let rows = batch.map { (self.tMs(uptime: $0.timestamp), $0.acceleration) }
+                    let rows = batch.map { (self.tMs(uptime: $0.timestamp), $0.timestamp, $0.acceleration) }
                     self.io.async {
-                        for (t, a) in rows {
+                        for (t, uptime, a) in rows {
                             self.writer?.vector(t, Self.source, "acc", a.x * Self.gravity, a.y * Self.gravity, a.z * Self.gravity)
+                            self.bufferLive(uptime, a.x, a.y, a.z)
                         }
                     }
                 }
@@ -256,9 +277,38 @@ final class WatchRecorder: NSObject, ObservableObject {
         batchedManager = nil
     }
 
+    /// On `io`: keeps every `liveEvery`-th accelerometer sample (in m/s²) for the next live batch.
+    private func bufferLive(_ uptime: TimeInterval, _ x: Double, _ y: Double, _ z: Double) {
+        guard onLiveBatch != nil else { return }
+        liveCounter += 1
+        guard liveCounter % liveEvery == 0 else { return }
+        liveT.append(uptime)
+        liveX.append(x * Self.gravity)
+        liveY.append(y * Self.gravity)
+        liveZ.append(z * Self.gravity)
+        if liveT.count > Self.liveRateHz * 5 {  // iPhone unreachable: keep only the last 5 s
+            let drop = liveT.count - Self.liveRateHz * 5
+            liveT.removeFirst(drop); liveX.removeFirst(drop); liveY.removeFirst(drop); liveZ.removeFirst(drop)
+        }
+    }
+
+    /// On `io`: hands the buffered samples to `onLiveBatch`. "t" is seconds since boot for each
+    /// sample and "sent" the same clock now, so the iPhone knows how old each sample is.
+    private func flushLive() {
+        guard let send = onLiveBatch, !liveT.isEmpty else { return }
+        let batch: [String: Any] = [
+            "type": "motion", "source": Self.source, "placement": livePlacement,
+            "sent": ProcessInfo.processInfo.systemUptime,
+            "t": liveT, "x": liveX, "y": liveY, "z": liveZ,
+        ]
+        liveT.removeAll(); liveX.removeAll(); liveY.removeAll(); liveZ.removeAll()
+        send(batch)
+    }
+
     private func tick() {
         elapsed = Date().timeIntervalSince(startDate)
         io.async {
+            self.flushLive()
             let n = self.writer?.counts["\(Self.source)/acc"] ?? 0
             DispatchQueue.main.async {
                 self.accCount = n

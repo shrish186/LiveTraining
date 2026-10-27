@@ -13,6 +13,7 @@ struct LiveTrainingWatchApp: App {
                 .onAppear {
                     let sender = transfer
                     recorder.onFinished = { sender.sendAll() }
+                    recorder.onLiveBatch = { batch in sender.sendLive(batch) }
                     transfer.activate()
                     recorder.requestAuthorization()
                 }

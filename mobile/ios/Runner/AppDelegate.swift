@@ -14,6 +14,31 @@ import WatchConnectivity
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "WatchMotionStream") {
+      FlutterEventChannel(name: WatchMotionStream.channel, binaryMessenger: registrar.messenger())
+        .setStreamHandler(WatchMotionStream.shared)
+    }
+  }
+}
+
+/// Live motion batches from the watch app, passed on to Dart (lib/sources/watch_motion_source.dart).
+final class WatchMotionStream: NSObject, FlutterStreamHandler {
+  static let shared = WatchMotionStream()
+  static let channel = "livetraining/watch_motion"
+  private var sink: FlutterEventSink?
+
+  func forward(_ batch: [String: Any]) {
+    DispatchQueue.main.async { self.sink?(batch) }
+  }
+
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
+    sink = events
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    sink = nil
+    return nil
   }
 }
 
@@ -67,6 +92,11 @@ final class WatchSessionReceiver: NSObject, WCSessionDelegate {
     }
     let out = try JSONSerialization.data(withJSONObject: meta, options: [.prettyPrinted, .sortedKeys])
     try out.write(to: destination, options: .atomic)
+  }
+
+  /// Live motion from the watch while it records (see WatchRecorder.onLiveBatch).
+  func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+    if message["type"] as? String == "motion" { WatchMotionStream.shared.forward(message) }
   }
 
   func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,

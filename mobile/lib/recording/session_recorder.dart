@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import '../sources/motion_source.dart';
 import 'csv_row.dart';
@@ -80,7 +81,7 @@ class SessionRecorder {
   /// Stamps the sample with the shared Stopwatch and queues the CSV row.
   void add(Sample s) {
     if (!isRecording) return;
-    final tMs = _stopwatch.elapsedMilliseconds;
+    final tMs = math.max(0, _stopwatch.elapsedMilliseconds - s.ageMs);
     _buffer.writeln(csvRow(tMs, s));
     _buffered++;
     final key = '${s.source}/${s.kind}';

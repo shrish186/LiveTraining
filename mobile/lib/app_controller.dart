@@ -16,6 +16,7 @@ import 'services/session_store.dart';
 import 'services/settings_store.dart';
 import 'sources/motion_source.dart';
 import 'sources/phone_motion_source.dart';
+import 'sources/watch_motion_source.dart';
 import 'sources/whoop_hr_source.dart';
 import 'util/day_summary.dart';
 import 'util/live_stats.dart';
@@ -24,9 +25,10 @@ import 'util/motion.dart';
 /// Owns the sources and the recorder. Each source has ONE subscription, fanned out to the live
 /// readouts and (while recording) to the recorder. The UI refreshes at 5 Hz (one tick).
 class AppController extends ChangeNotifier {
-  AppController(this.settings, {MotionSource? motionSource, WhoopHrSource? hrSource})
+  AppController(this.settings, {MotionSource? motionSource, WhoopHrSource? hrSource, WatchMotionSource? watchSource})
     : motionSource = motionSource ?? PhoneMotionSource(),
-      hr = hrSource ?? WhoopHrSource() {
+      hr = hrSource ?? WhoopHrSource(),
+      watch = watchSource ?? WatchMotionSource() {
     sport = settings.sport;
     sessionType = settings.sessionType;
     placement = settings.placement;
@@ -35,6 +37,10 @@ class AppController extends ChangeNotifier {
   final SettingsStore settings;
   final MotionSource motionSource;
   final WhoopHrSource hr;
+
+  /// Live motion from our watch app on the leg. While it flows, the coach and the Motion card use
+  /// it instead of the phone (the phone keeps recording as a backup).
+  final WatchMotionSource watch;
 
   // Per-session choices (defaults come from Settings, editable on Home before Start).
   late String sport;
@@ -45,7 +51,10 @@ class AppController extends ChangeNotifier {
   // Live readouts
   final LiveMagnitude _live = LiveMagnitude();
   final Stopwatch _liveClock = Stopwatch()..start();
-  double get motionMagnitude => _live.value;
+  final LiveMagnitude _liveWatch = LiveMagnitude();
+  int? _lastWatchMs;
+  bool get watchLive => _lastWatchMs != null && _liveClock.elapsedMilliseconds - _lastWatchMs! < motionStaleMs;
+  double get motionMagnitude => watchLive ? _liveWatch.value : _live.value;
   String? motionError;
   bool motionErrorNeedsSettings = false;
   int _lastAccMs = 0;
@@ -85,6 +94,7 @@ class AppController extends ChangeNotifier {
 
   StreamSubscription<Sample>? _motionSub;
   StreamSubscription<Sample>? _hrSub;
+  StreamSubscription<Sample>? _watchSub;
   Timer? _uiTimer;
 
   /// OS name and version from dart:io, e.g. "ios Version 18.5 (Build 22F76)". No plugin needed
@@ -103,6 +113,7 @@ class AppController extends ChangeNotifier {
       },
     );
     _hrSub = hr.samples.listen(_onSample);
+    _watchSub = watch.start().listen(_onWatch);
     hr.addListener(notifyListeners);
     _uiTimer = Timer.periodic(tick, (_) {
       _checkMotionFlowing();
@@ -121,6 +132,21 @@ class AppController extends ChangeNotifier {
   /// Feeds one sample as if it came from the motion source (widget tests and previews).
   @visibleForTesting
   void debugAddMotion(Sample s) => _onMotion(s);
+
+  @visibleForTesting
+  void debugAddWatch(Sample s) => _onWatch(s);
+
+  /// Watch samples arrive in batches; each knows its age, so it is placed at its own time.
+  void _onWatch(Sample s) {
+    if (s.kind != 'acc') return;
+    final now = _liveClock.elapsedMilliseconds;
+    _lastWatchMs = now;
+    _liveWatch.add(s.x!, s.y!, s.z!, now - s.ageMs);
+    recorder?.add(s);
+    final c = coach;
+    if (!isRecording || c == null) return;
+    c.addAcc(recorder!.elapsed.inMilliseconds - s.ageMs, s.x!, s.y!, s.z!);
+  }
 
   void _onMotion(Sample s) {
     if (s.kind == 'acc') {
@@ -167,7 +193,7 @@ class AppController extends ChangeNotifier {
     final c = coach;
     if (c == null) return;
     final tMs = recorder!.elapsed.inMilliseconds;
-    if (s.kind == 'acc') c.addAcc(tMs, s.x!, s.y!, s.z!);
+    if (s.kind == 'acc' && !watchLive) c.addAcc(tMs, s.x!, s.y!, s.z!); // the leg wins when it streams
     if (s.kind == 'hr') c.addHr(tMs, s.value!);
   }
 
@@ -267,13 +293,15 @@ class AppController extends ChangeNotifier {
 
   Future<void> startSession() async {
     if (isRecording) return;
+    // With the watch streaming, the motion that counts is the leg's: use where the watch is worn.
+    final sessionPlacement = watchLive ? (watch.placement ?? placement) : placement;
     final r = SessionRecorder(
       directory: await SessionStore.directory(),
       sessionId: const Uuid().v4(),
       setup: SessionSetup(
         sport: sport,
         sessionType: sessionType,
-        placement: placement,
+        placement: sessionPlacement,
         athleteId: settings.athleteId,
         notes: notes,
       ),
@@ -288,7 +316,7 @@ class AppController extends ChangeNotifier {
     coach = profiles == null
         ? null
         : LiveCoach(
-            CoachConfig.fromProfile(profiles.forSport(sport), placement),
+            CoachConfig.fromProfile(profiles.forSport(sport), sessionPlacement),
             restingHr: recovery?.restingHr,
             recoveryScore: recovery?.recoveryScore,
           );
@@ -362,7 +390,9 @@ class AppController extends ChangeNotifier {
     _uiTimer?.cancel();
     _motionSub?.cancel();
     _hrSub?.cancel();
+    _watchSub?.cancel();
     motionSource.stop();
+    watch.stop();
     hr.removeListener(notifyListeners);
     hr.dispose();
     super.dispose();

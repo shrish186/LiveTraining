@@ -452,7 +452,26 @@ class _MotionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionLabel('Motion', trailing: Text(prettySlug(controller.placement), style: AppText.dim)),
+          SectionLabel(
+            'Motion',
+            trailing: controller.watchLive
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: const BoxDecoration(color: AppColors.good, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Watch · ${prettySlug(controller.watch.placement ?? controller.placement)}',
+                        style: AppText.dim,
+                      ),
+                    ],
+                  )
+                : Text('Phone · ${prettySlug(controller.placement)}', style: AppText.dim),
+          ),
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
