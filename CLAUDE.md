@@ -68,6 +68,7 @@ cd analysis && pip install -r requirements.txt
 python make_synthetic_session.py --out output/
 python analyze_session.py output/synthetic.csv --metadata output/synthetic.json --profile soccer
 python validate_session.py <session.csv>   # detection vs your Mark taps, threshold suggestion
+python check_rate.py <session.csv>         # real sample rate per stream (e.g. did the watch get 800 Hz)
 python make_parity_fixture.py             # after an analysis change (app parity test)
 pytest
 

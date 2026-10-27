@@ -392,7 +392,7 @@ Where the spec was open, I picked the simplest option that works and noted it he
 
 - **Verified in development:**
   - Backend: 64 tests passing
-  - Analysis: 27 tests passing
+  - Analysis: 31 tests passing
   - Flutter: 53 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse

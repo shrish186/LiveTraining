@@ -35,6 +35,9 @@ final class WatchRecorder: NSObject, ObservableObject {
     @Published private(set) var isRecording = false
     @Published private(set) var elapsed: TimeInterval = 0
     @Published private(set) var accCount = 0
+    /// Accelerometer samples per second actually arriving, over the last few seconds.
+    @Published private(set) var accRateHz: Int?
+    private var countHistory: [(TimeInterval, Int)] = []
     @Published private(set) var heartRate: Double?
     @Published private(set) var status = "Ready"
 
@@ -120,6 +123,8 @@ final class WatchRecorder: NSObject, ObservableObject {
             builder.beginCollection(withStart: startDate) { _, _ in }
             startMotion()
             isRecording = true
+            countHistory = []
+            accRateHz = nil
             status = "Recording"
             heartRate = nil
             try writeMetadata(complete: false)
@@ -255,7 +260,15 @@ final class WatchRecorder: NSObject, ObservableObject {
         elapsed = Date().timeIntervalSince(startDate)
         io.async {
             let n = self.writer?.counts["\(Self.source)/acc"] ?? 0
-            DispatchQueue.main.async { self.accCount = n }
+            DispatchQueue.main.async {
+                self.accCount = n
+                let now = self.elapsed
+                self.countHistory.append((now, n))
+                if self.countHistory.count > 7 { self.countHistory.removeFirst() }  // ~3 s at 2 ticks/s
+                if let first = self.countHistory.first, now - first.0 >= 2 {
+                    self.accRateHz = Int((Double(n - first.1) / (now - first.0)).rounded())
+                }
+            }
         }
     }
 

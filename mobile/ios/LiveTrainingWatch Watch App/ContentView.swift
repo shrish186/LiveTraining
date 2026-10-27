@@ -88,7 +88,7 @@ struct RecordingView: View {
                         .font(.title3.bold()).monospacedDigit()
                     Text("BPM").font(.caption2).foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(recorder.accCount)").font(.caption2).monospacedDigit().foregroundStyle(.secondary)
+                    Text(recorder.accRateHz.map { "\($0) Hz" } ?? "— Hz").font(.caption2).monospacedDigit().foregroundStyle(.secondary)
                 }
                 HStack {
                     Button("Sync") { recorder.mark("sync_jumps") }

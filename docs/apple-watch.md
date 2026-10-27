@@ -91,6 +91,32 @@ you only need step 6 (Developer Mode) and step 7 (install). The steps below are 
 7. Keep the phone nearby with the app open. The watch sends its files in the background, and the
    session appears in the **Sessions** tab tagged **Apple Watch**. Upload both sessions.
 
+## Did it really record at 800 Hz?
+
+Two checks:
+
+1. **On the watch, while recording:** the number next to BPM is the accelerometer rate actually
+   arriving, e.g. `800 Hz`. It updates every half second over the last 2–3 seconds. `100 Hz` means
+   800 Hz fell back, and the line under the timer says why (for example "800 Hz not supported
+   here"). 800 Hz needs watchOS 10+ and a Series 8 / Ultra or newer. Your Ultra qualifies once
+   watchOS is updated.
+2. **On the recorded file, after upload** (this is the proof):
+
+```bash
+cd ~/LiveTraining/analysis && . .venv/bin/activate
+python check_rate.py ../backend/data/sessions/<watch_id>.csv
+```
+
+It prints, per stream (`apple_watch/acc`, `apple_watch/gyro`), the overall rate, a typical second,
+the worst second, and dropouts (gaps over 50 ms). It ends with
+`apple_watch accelerometer at 800 Hz: YES` or `NO`. The expected rate comes from the session's
+`requested_rate_hz`; override it with `--expect 800`. Expect the gyroscope at about 200 Hz in
+800 Hz mode: that is Apple's limit for device motion.
+
+The file stores whole milliseconds, so at 800 Hz (one sample every 1.25 ms) some consecutive
+samples share a `t_ms`. Nothing is lost: the count per second is still 800, and the analysis bins
+to 10 Hz anyway.
+
 ## Analysis
 
 ```bash
@@ -119,6 +145,6 @@ Those thresholds are starting guesses, so expect to tune them after a few sessio
   - Check the watch's start screen, which shows how many files are waiting. Tap
     **Send to iPhone again**.
   - Both apps must come from the same project (the watch app is Runner's companion).
-- **No motion on the watch** (the sample counter stays at 0): check Settings › Privacy & Security
+- **No motion on the watch** (the rate stays at `— Hz` or `0 Hz`): check Settings › Privacy & Security
   › Motion & Fitness on the iPhone.
 - **800 Hz option says "not supported":** the watch falls back to 100 Hz and records anyway.
