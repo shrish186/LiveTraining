@@ -53,7 +53,7 @@ Live calls come later and will reuse the analysis logic and the sport profiles.
 # backend
 cd backend && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 pytest
-./run_dev.sh            # or: uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload
+./run_dev.sh            # or: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 # analysis
 cd analysis && pip install -r requirements.txt

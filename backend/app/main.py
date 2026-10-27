@@ -309,3 +309,40 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
 
     return app
 
+
+
+class LazyApp:
+    """Module-level ASGI app for `uvicorn app.main:app`.
+
+    Builds the real app when uvicorn starts (lifespan startup), so importing this module has no
+    side effects, and missing WHOOP credentials still stop the server at startup with a clear message.
+    """
+
+    def __init__(self, factory=create_app):
+        self._factory = factory
+        self._app: FastAPI | None = None
+
+    def _build(self) -> FastAPI:
+        if self._app is None:
+            self._app = self._factory()
+        return self._app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "lifespan":
+            # The inner app registers no startup/shutdown hooks, so the lifespan is handled here.
+            while True:
+                message = await receive()
+                if message["type"] == "lifespan.startup":
+                    try:
+                        self._build()
+                    except Exception as exc:  # noqa: BLE001 (reported to uvicorn, which exits)
+                        await send({"type": "lifespan.startup.failed", "message": str(exc)})
+                        return
+                    await send({"type": "lifespan.startup.complete"})
+                elif message["type"] == "lifespan.shutdown":
+                    await send({"type": "lifespan.shutdown.complete"})
+                    return
+        await self._build()(scope, receive, send)
+
+
+app = LazyApp()

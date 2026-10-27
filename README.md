@@ -81,8 +81,8 @@ cp .env.example .env            # then edit .env: WHOOP_CLIENT_ID, WHOOP_CLIENT_
 - <http://localhost:8000> shows a status page: server running, credentials configured yes/no, a
   Connect WHOOP button, and connected athletes with their IDs. API docs are at
   <http://localhost:8000/docs>.
-- Tests: `.venv/bin/pytest` (58 tests, no network needed). To start manually:
-  `.venv/bin/uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8000`.
+- Tests: `.venv/bin/pytest` (63 tests, no network needed). To start manually:
+  `.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000`.
 - Data is stored in `backend/data/` (SQLite DB and uploaded sessions; gitignored). For Postgres, set
   `DATABASE_URL=postgresql+psycopg://user:pass@host/db` and `pip install "psycopg[binary]"`.
 - Run a single worker (the default). See Decisions #17.
@@ -311,7 +311,7 @@ Where the spec was open, I picked the simplest option that works and noted it he
 ## Status
 
 - **Verified in development:**
-  - Backend: 58 tests passing
+  - Backend: 63 tests passing
   - Analysis: 15 tests passing
   - Flutter: 37 tests passing, `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
