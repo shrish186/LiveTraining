@@ -305,7 +305,11 @@ Where the spec was open, I picked the simplest option that works and noted it he
     and watches it while connected. Motion problems are detected by the absence of data: iOS gives
     raw accelerometer data without Motion & Fitness access, so that prompt may never appear, and the
     app only mentions the permission if it is explicitly denied.
-31. **Extra packages:** `uuid` (session IDs) and `device_info_plus` (device model in the metadata).
+31. **Extra packages:** `uuid` (session IDs). `device_info_plus` was removed: 12.4+ calls an
+    Xcode 26-only API (`isiOSAppOnVision`) and fails to build on Xcode 16.4. Older versions predate
+    Flutter 3.44's Swift Package Manager setup. `device_model` in the metadata is now the OS name
+    and version from `dart:io` (e.g. `ios Version 18.5 (Build 22F76)`). On Android, the app
+    requests Bluetooth scan/connect plus location without needing the SDK level.
     Upload status is kept in `shared_preferences`.
 
 ## Status

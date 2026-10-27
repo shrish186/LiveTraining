@@ -84,7 +84,7 @@ t_ms,source,kind,x,y,z,value
   "session_type": "training",
   "started_at": "2026-10-27T18:02:11Z",
   "app_version": "0.1.0",
-  "device_model": "iPhone15,2",
+  "device_model": "ios Version 18.5 (Build 22F76)",
   "sources": [
     {"id": "phone", "kinds": ["acc", "gyro"], "sample_rate_hz": 99.6},
     {"id": "whoop_hr", "kinds": ["hr", "rr"], "sample_rate_hz": 1}
@@ -105,7 +105,7 @@ t_ms,source,kind,x,y,z,value
 | `session_type` | yes | e.g. `training`, `match`, `drill`, `gym` |
 | `started_at` | yes | ISO 8601, UTC, the wall-clock time of `t_ms = 0` |
 | `app_version` | no | recording app version |
-| `device_model` | no | phone model string |
+| `device_model` | no | phone OS and version, as reported by the app |
 | `sources` | no | list of `{id, kinds, sample_rate_hz}`. The rate is the *measured* average of that source's busiest stream. |
 | `placement` | no | where the motion sensor was worn: `shin`, `thigh`, `wrist`, `waist`, `chest`, `upper_arm`, `phone_armband`, `phone_pocket`, … |
 | `notes` | no | free text |

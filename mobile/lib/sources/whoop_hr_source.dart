@@ -125,7 +125,8 @@ class WhoopHrSource extends ChangeNotifier {
     } catch (e) {
       await _scanSub?.cancel();
       _wanted = false;
-      _set(HrConnection.error, err: 'Bluetooth scan failed: $e');
+      final hint = Platform.isAndroid ? ' On Android 11 and older, also allow Location for Live Training.' : '';
+      _set(HrConnection.error, err: 'Bluetooth scan failed: $e.$hint', needsSettings: Platform.isAndroid);
       return;
     }
     await _scanSub?.cancel();

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
@@ -66,13 +65,13 @@ class AppController extends ChangeNotifier {
   StreamSubscription<Sample>? _hrSub;
   Timer? _uiTimer;
   bool _dirty = false;
-  String _deviceModel = 'unknown';
-  int _androidSdk = 0;
+  /// OS name and version from dart:io, e.g. "ios Version 18.5 (Build 22F76)". No plugin needed
+  /// (device_info_plus 12.4+ needs the Xcode 26 SDK to build).
+  final String _deviceModel = '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
 
   BackendApi get api => BackendApi(settings.backendUrl);
 
   Future<void> init() async {
-    _deviceModel = await _readDeviceModel();
     _motionPermissionDenied = await _isMotionPermissionDenied();
     _motionSub = motionSource.start().listen(_onMotion, onError: (Object e) {
       motionError = 'Motion sensor error: $e';
@@ -89,21 +88,6 @@ class AppController extends ChangeNotifier {
     });
     await refreshSessions();
     unawaited(refreshRecovery());
-  }
-
-  Future<String> _readDeviceModel() async {
-    final info = DeviceInfoPlugin();
-    try {
-      if (Platform.isAndroid) {
-        final a = await info.androidInfo;
-        _androidSdk = a.version.sdkInt;
-        return '${a.manufacturer} ${a.model}';
-      }
-      if (Platform.isIOS) return (await info.iosInfo).utsname.machine;
-    } on Exception {
-      // fall through
-    }
-    return 'unknown';
   }
 
   void _onMotion(Sample s) {
@@ -154,12 +138,17 @@ class AppController extends ChangeNotifier {
 
   Future<void> connectHr() async {
     if (Platform.isAndroid) {
-      // Android 12+: scan/connect permissions. Android 11 and older: location is required to scan.
-      final needed = _androidSdk >= 31
-          ? [Permission.bluetoothScan, Permission.bluetoothConnect]
-          : [Permission.locationWhenInUse];
-      final results = await needed.request();
-      if (results.values.any((s) => !s.isGranted)) {
+      // Android 12+ needs scan/connect; Android 11 and older needs location to scan instead.
+      // Requesting all three works on every version without knowing the SDK level:
+      // - on Android 11 and older, permission_handler reports scan/connect as granted;
+      // - on Android 12+, location is not in the manifest (maxSdkVersion 30), so no dialog appears.
+      // Only scan/connect are required here; a missing location shows up as a scan error.
+      final results = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.locationWhenInUse,
+      ].request();
+      if (!results[Permission.bluetoothScan]!.isGranted || !results[Permission.bluetoothConnect]!.isGranted) {
         hr.reportError(
           'Bluetooth permission denied. Allow "Nearby devices" in Settings › Apps › Live Training › Permissions.',
           needsSettings: true,
