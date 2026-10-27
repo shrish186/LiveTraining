@@ -86,11 +86,13 @@ t_ms,source,kind,x,y,z,value
   "app_version": "0.1.0",
   "device_model": "iPhone15,2",
   "sources": [
-    {"id": "phone", "kinds": ["acc", "gyro"], "sample_rate_hz": 100},
+    {"id": "phone", "kinds": ["acc", "gyro"], "sample_rate_hz": 99.6},
     {"id": "whoop_hr", "kinds": ["hr", "rr"], "sample_rate_hz": 1}
   ],
   "placement": "phone_armband",
-  "notes": "cold evening, turf"
+  "notes": "cold evening, turf",
+  "duration_ms": 3720450,
+  "complete": true
 }
 ```
 
@@ -104,9 +106,11 @@ t_ms,source,kind,x,y,z,value
 | `started_at` | yes | ISO 8601, UTC, the wall-clock time of `t_ms = 0` |
 | `app_version` | no | recording app version |
 | `device_model` | no | phone model string |
-| `sources` | no | list of `{id, kinds, sample_rate_hz}`. The rate is *nominal* (requested), not measured. |
+| `sources` | no | list of `{id, kinds, sample_rate_hz}`. The rate is the *measured* average of that source's busiest stream. |
 | `placement` | no | where the motion sensor was worn: `shin`, `thigh`, `wrist`, `waist`, `chest`, `upper_arm`, `phone_armband`, `phone_pocket`, … |
 | `notes` | no | free text |
+| `duration_ms` | no | written by the app at stop |
+| `complete` | no | `false` while recording. A session that stays `false` was cut short (app killed), but its CSV is still valid up to that point. |
 
 Unknown extra fields are allowed and preserved.
 
