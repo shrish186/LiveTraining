@@ -14,14 +14,15 @@ import 'services/settings_store.dart';
 import 'sources/motion_source.dart';
 import 'sources/phone_motion_source.dart';
 import 'sources/whoop_hr_source.dart';
+import 'util/live_stats.dart';
 import 'util/motion.dart';
 
 /// Owns the sources and the recorder. Each source has ONE subscription, fanned out to the live
-/// readouts and (while recording) to the recorder. UI refreshes are throttled to 5 Hz.
+/// readouts and (while recording) to the recorder. The UI refreshes at 5 Hz (one tick).
 class AppController extends ChangeNotifier {
   AppController(this.settings, {MotionSource? motionSource, WhoopHrSource? hrSource})
-      : motionSource = motionSource ?? PhoneMotionSource(),
-        hr = hrSource ?? WhoopHrSource() {
+    : motionSource = motionSource ?? PhoneMotionSource(),
+      hr = hrSource ?? WhoopHrSource() {
     sport = settings.sport;
     sessionType = settings.sessionType;
     placement = settings.placement;
@@ -47,6 +48,14 @@ class AppController extends ChangeNotifier {
   bool _motionPermissionDenied = false;
   static const motionStaleMs = 3000;
 
+  // Recent history for the sparklines (one point per UI tick).
+  static const tick = Duration(milliseconds: 200);
+  final RollingSeries hrHistory = RollingSeries(120 * 5); // 2 min
+  final RollingSeries motionHistory = RollingSeries(60 * 5); // 1 min
+
+  /// Running numbers for the session being recorded.
+  SessionStats stats = SessionStats();
+
   // Recovery card
   Recovery? recovery;
   String? recoveryError;
@@ -64,7 +73,7 @@ class AppController extends ChangeNotifier {
   StreamSubscription<Sample>? _motionSub;
   StreamSubscription<Sample>? _hrSub;
   Timer? _uiTimer;
-  bool _dirty = false;
+
   /// OS name and version from dart:io, e.g. "ios Version 18.5 (Build 22F76)". No plugin needed
   /// (device_info_plus 12.4+ needs the Xcode 26 SDK to build).
   final String _deviceModel = '${Platform.operatingSystem} ${Platform.operatingSystemVersion}';
@@ -73,22 +82,28 @@ class AppController extends ChangeNotifier {
 
   Future<void> init() async {
     _motionPermissionDenied = await _isMotionPermissionDenied();
-    _motionSub = motionSource.start().listen(_onMotion, onError: (Object e) {
-      motionError = 'Motion sensor error: $e';
-      _dirty = true;
-    });
+    _motionSub = motionSource.start().listen(
+      _onMotion,
+      onError: (Object e) {
+        motionError = 'Motion sensor error: $e';
+      },
+    );
     _hrSub = hr.samples.listen(_onSample);
     hr.addListener(notifyListeners);
-    _uiTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+    _uiTimer = Timer.periodic(tick, (_) {
       _checkMotionFlowing();
-      if (_dirty || isRecording) {
-        _dirty = false;
-        notifyListeners();
-      }
+      hrHistory.add(hr.lastBpm?.toDouble());
+      motionHistory.add(motionError == null ? motionMagnitude : null);
+      if (isRecording) stats.addMotion(motionMagnitude, tick.inMilliseconds / 1000);
+      notifyListeners();
     });
     await refreshSessions();
     unawaited(refreshRecovery());
   }
+
+  /// Feeds one sample as if it came from the motion source (widget tests and previews).
+  @visibleForTesting
+  void debugAddMotion(Sample s) => _onMotion(s);
 
   void _onMotion(Sample s) {
     if (s.kind == 'acc') {
@@ -118,20 +133,19 @@ class AppController extends ChangeNotifier {
     final String? message = !stale
         ? null
         : _motionPermissionDenied
-            ? 'No motion data: Motion & Fitness access is off for Live Training. Turn it on in '
-                'Settings › Privacy & Security › Motion & Fitness.'
-            : 'No motion data from the phone\'s sensors. Keep the app open on screen; if this stays, '
-                'force-quit and reopen the app.';
+        ? 'No motion data: Motion & Fitness access is off for Live Training. Turn it on in '
+              'Settings › Privacy & Security › Motion & Fitness.'
+        : 'No motion data from the phone\'s sensors. Keep the app open on screen; if this stays, '
+              'force-quit and reopen the app.';
     if (message != motionError && (stale || motionError != null)) {
       motionError = message;
       motionErrorNeedsSettings = stale && _motionPermissionDenied;
-      _dirty = true;
     }
   }
 
   void _onSample(Sample s) {
     recorder?.add(s);
-    _dirty = true;
+    if (isRecording && s.kind == 'hr') stats.addHr(s.value!);
   }
 
   // ---- WHOOP HR -------------------------------------------------------------
@@ -166,6 +180,12 @@ class AppController extends ChangeNotifier {
 
   Future<void> refreshRecovery() async {
     final id = settings.athleteId;
+    if (settings.backendUrl.isEmpty) {
+      recovery = null;
+      recoveryError = 'Add your backend URL in Settings to see today\'s recovery.';
+      notifyListeners();
+      return;
+    }
     if (id == null) {
       recovery = null;
       recoveryError = 'Set your athlete ID in Settings to see today\'s recovery.';
@@ -212,6 +232,7 @@ class AppController extends ChangeNotifier {
       deviceModel: _deviceModel,
     );
     await r.start();
+    stats = SessionStats();
     recorder = r;
     await WakelockPlus.enable();
     notifyListeners();
@@ -235,7 +256,11 @@ class AppController extends ChangeNotifier {
   // ---- sessions list --------------------------------------------------------
 
   Future<void> refreshSessions() async {
-    sessions = await SessionStore.list();
+    try {
+      sessions = await SessionStore.list();
+    } on Exception {
+      return; // storage unavailable (e.g. in widget tests); keep the current list
+    }
     final done = settings.uploadedSessionIds;
     for (final s in sessions) {
       if (done.contains(s.id)) uploadStatus[s.id] = 'Uploaded';

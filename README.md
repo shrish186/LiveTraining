@@ -49,6 +49,16 @@ You'll see 6 detected efforts, with the last two flagged "fatigue building":
 
 ---
 
+## The app
+
+| Today | Recording | Settings |
+|---|---|---|
+| ![Live tab](docs/screenshots/home_connected.png) | ![Recording](docs/screenshots/home_recording.png) | ![Settings](docs/screenshots/settings.png) |
+
+These screenshots are rendered by `mobile/test/ui_screens_test.dart` with sample data. To
+regenerate them:
+`PREVIEW_DIR=../docs/screenshots PREVIEW_FONT_DIR=<folder with Inter-*.otf> flutter test test/ui_screens_test.dart`.
+
 ## 1. Register a WHOOP developer app (once)
 
 1. Go to the WHOOP Developer Dashboard at <https://developer-dashboard.whoop.com> and sign in with your
@@ -110,7 +120,7 @@ Needs the Flutter SDK (<https://docs.flutter.dev/get-started/install>). The plat
 ```bash
 cd mobile
 flutter pub get
-flutter test            # 37 tests
+flutter test            # 46 tests
 flutter devices         # your phone should be listed
 flutter run --release   # or plain `flutter run` for hot reload
 ```
@@ -317,7 +327,7 @@ Where the spec was open, I picked the simplest option that works and noted it he
 - **Verified in development:**
   - Backend: 63 tests passing
   - Analysis: 15 tests passing
-  - Flutter: 37 tests passing, `flutter analyze` clean
+  - Flutter: 46 tests passing, `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
 - **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development

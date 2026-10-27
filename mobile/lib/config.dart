@@ -6,15 +6,4 @@ const appVersion = '0.1.0';
 
 const sportOptions = ['general', 'soccer', 'running', 'basketball', 'tennis', 'cycling', 'gym'];
 const sessionTypeOptions = ['training', 'match', 'drill', 'gym'];
-const placementOptions = [
-  'phone_armband',
-  'phone_pocket',
-  'shin',
-  'thigh',
-  'waist',
-  'wrist',
-  'upper_arm',
-  'chest',
-];
-
-const defaultBackendUrl = 'http://192.168.1.10:8000';
+const placementOptions = ['phone_armband', 'phone_pocket', 'shin', 'thigh', 'waist', 'wrist', 'upper_arm', 'chest'];

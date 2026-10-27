@@ -5,6 +5,7 @@ import 'screens/home_screen.dart';
 import 'screens/sessions_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/settings_store.dart';
+import 'ui/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,12 +21,11 @@ class LiveTrainingApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    ThemeData theme(Brightness b) =>
-        ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0B7285), brightness: b));
     return MaterialApp(
       title: 'Live Training',
-      theme: theme(Brightness.light),
-      darkTheme: theme(Brightness.dark),
+      debugShowCheckedModeBanner: false,
+      theme: buildTheme(),
+      themeMode: ThemeMode.dark,
       home: _Shell(controller: controller),
     );
   }
@@ -42,30 +42,38 @@ class _Shell extends StatefulWidget {
 
 class _ShellState extends State<_Shell> {
   int _tab = 0;
-  static const _titles = ['Live Training', 'Sessions', 'Settings'];
+
+  void _go(int i) {
+    setState(() => _tab = i);
+    if (i == 1) widget.controller.refreshSessions();
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_tab])),
       body: SafeArea(
-        child: IndexedStack(index: _tab, children: [
-          HomeScreen(controller: c),
-          SessionsScreen(controller: c),
-          SettingsScreen(controller: c),
-        ]),
+        bottom: false,
+        child: IndexedStack(
+          index: _tab,
+          children: [
+            HomeScreen(controller: c, onOpenSettings: () => _go(2)),
+            SessionsScreen(controller: c),
+            SettingsScreen(controller: c),
+          ],
+        ),
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (i) {
-          setState(() => _tab = i);
-          if (i == 1) c.refreshSessions();
-        },
+        onDestinationSelected: _go,
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.monitor_heart), label: 'Live'),
-          NavigationDestination(icon: Icon(Icons.list), label: 'Sessions'),
-          NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
+          NavigationDestination(
+            icon: Icon(Icons.monitor_heart_outlined),
+            selectedIcon: Icon(Icons.monitor_heart),
+            label: 'LIVE',
+          ),
+          NavigationDestination(icon: Icon(Icons.timeline_rounded), label: 'SESSIONS'),
+          NavigationDestination(icon: Icon(Icons.tune_rounded), label: 'SETTINGS'),
         ],
       ),
     );

@@ -1,7 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config.dart';
-
 class SettingsStore {
   SettingsStore(this._prefs);
 
@@ -9,7 +7,7 @@ class SettingsStore {
 
   final SharedPreferences _prefs;
 
-  String get backendUrl => _prefs.getString('backend_url') ?? defaultBackendUrl;
+  String get backendUrl => _prefs.getString('backend_url') ?? '';
   set backendUrl(String v) => _prefs.setString('backend_url', v.trim().replaceFirst(RegExp(r'/+$'), ''));
 
   int? get athleteId => _prefs.getInt('athlete_id');

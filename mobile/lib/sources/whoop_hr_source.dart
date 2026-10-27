@@ -17,14 +17,18 @@ enum HrConnection { idle, scanning, connecting, connected, reconnecting, error }
 /// Works with any standard BLE heart-rate strap; WHOOP-named devices are preferred when several
 /// are in range.
 class WhoopHrSource extends ChangeNotifier {
-  WhoopHrSource({FlutterReactiveBle? ble}) : _ble = ble ?? FlutterReactiveBle();
+  WhoopHrSource({FlutterReactiveBle? ble}) : _bleOverride = ble;
 
   static final heartRateService = Uuid.parse('180D');
   static final heartRateMeasurement = Uuid.parse('2A37');
   static const sourceId = 'whoop_hr';
   static const scanTimeout = Duration(seconds: 10);
 
-  final FlutterReactiveBle _ble;
+  final FlutterReactiveBle? _bleOverride;
+
+  /// Created on first use: constructing FlutterReactiveBle starts Bluetooth, which on iOS shows the
+  /// permission prompt. Deferring it makes the prompt appear when the user taps Connect.
+  late final FlutterReactiveBle _ble = _bleOverride ?? FlutterReactiveBle();
   final _samples = StreamController<Sample>.broadcast();
 
   HrConnection state = HrConnection.idle;

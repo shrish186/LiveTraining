@@ -2,17 +2,15 @@ import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
 import '../services/session_store.dart';
+import '../ui/theme.dart';
+import '../ui/widgets.dart';
+
+const _months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
 class SessionsScreen extends StatelessWidget {
   const SessionsScreen({super.key, required this.controller});
 
   final AppController controller;
-
-  String _date(DateTime? d) {
-    if (d == null) return '?';
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,64 +18,138 @@ class SessionsScreen extends StatelessWidget {
       listenable: controller,
       builder: (context, _) {
         final sessions = controller.sessions;
+        final uploaded = sessions.where((s) => controller.isUploaded(s.id)).length;
         return RefreshIndicator(
           onRefresh: controller.refreshSessions,
-          child: sessions.isEmpty
-              ? ListView(children: const [
-                  Padding(padding: EdgeInsets.all(32), child: Center(child: Text('No sessions recorded yet.'))),
-                ])
-              : ListView.separated(
-                  itemCount: sessions.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, i) => _tile(context, sessions[i]),
-                ),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            children: [
+              ScreenHeader(
+                overline: sessions.isEmpty ? 'History' : '${sessions.length} recorded · $uploaded uploaded',
+                title: 'Sessions',
+              ),
+              if (sessions.isEmpty)
+                const AppCard(
+                  child: Column(
+                    children: [
+                      Icon(Icons.timeline_rounded, size: 40, color: AppColors.textFaint),
+                      SizedBox(height: 12),
+                      Text('No sessions yet', style: AppText.body),
+                      SizedBox(height: 4),
+                      Text('Start one from the Live tab.', style: AppText.dim),
+                    ],
+                  ),
+                )
+              else
+                for (final s in sessions) ...[
+                  _SessionTile(controller: controller, session: s),
+                  const SizedBox(height: 10),
+                ],
+            ],
+          ),
         );
       },
     );
   }
+}
 
-  Widget _tile(BuildContext context, LocalSession s) {
+class _SessionTile extends StatelessWidget {
+  const _SessionTile({required this.controller, required this.session});
+
+  final AppController controller;
+  final LocalSession session;
+
+  void _showFailure(BuildContext context, String status) => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Upload failed'),
+      content: SingleChildScrollView(child: SelectableText(status.replaceFirst('Failed: ', ''), style: AppText.dim)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            controller.upload(session);
+          },
+          child: const Text('Retry'),
+        ),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
     final c = controller;
+    final s = session;
     final status = c.uploadStatus[s.id];
+    final failed = status?.startsWith('Failed') ?? false;
     final recordingThis = c.isRecording && c.recorder?.sessionId == s.id;
-    final minutes = s.duration.inSeconds / 60;
+    final start = s.startedAt;
+    String two(int n) => n.toString().padLeft(2, '0');
+
     final details = [
-      _date(s.startedAt),
-      if (!recordingThis) '${minutes.toStringAsFixed(1)} min',
-      if (recordingThis) 'recording…',
+      if (start != null) '${two(start.hour)}:${two(start.minute)}',
+      if (recordingThis) 'recording…' else '${(s.duration.inSeconds / 60).toStringAsFixed(1)} min',
+      prettySlug(s.metadata['placement'] as String? ?? ''),
       if (!s.complete && !recordingThis) 'incomplete',
-    ].join(' · ');
+    ].where((e) => e.isNotEmpty).join(' · ');
+
     final Widget trailing;
     if (c.uploading.contains(s.id)) {
-      trailing = const SizedBox.square(dimension: 24, child: CircularProgressIndicator(strokeWidth: 2));
+      trailing = const SizedBox.square(
+        dimension: 22,
+        child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.accent),
+      );
     } else if (c.isUploaded(s.id)) {
-      trailing = const Icon(Icons.cloud_done, color: Colors.green);
+      trailing = const StatusPill(color: AppColors.good, text: 'Uploaded');
+    } else if (failed) {
+      trailing = StatusPill(color: AppColors.danger, text: 'Failed', onTap: () => _showFailure(context, status!));
     } else {
-      trailing = IconButton(
-        icon: const Icon(Icons.cloud_upload),
-        tooltip: 'Upload',
+      trailing = FilledButton.tonalIcon(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+        ),
         onPressed: recordingThis ? null : () => c.upload(s),
+        icon: const Icon(Icons.cloud_upload_rounded, size: 18),
+        label: const Text('Upload'),
       );
     }
-    final failed = status?.startsWith('Failed') ?? false;
-    return ListTile(
-      title: Text('${s.sport} · ${s.sessionType}'),
-      subtitle: Text(
-        status == null ? details : '$details\n${failed ? 'Upload failed (tap for details)' : status}',
-        style: failed ? TextStyle(color: Theme.of(context).colorScheme.error) : null,
-      ),
-      isThreeLine: status != null,
-      trailing: trailing,
-      onTap: failed
-          ? () => showDialog<void>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Upload failed'),
-                  content: SingleChildScrollView(child: SelectableText(status!.replaceFirst('Failed: ', ''))),
-                  actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+
+    return AppCard(
+      padding: const EdgeInsets.all(16),
+      onTap: failed ? () => _showFailure(context, status!) : null,
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(14)),
+            child: Column(
+              children: [
+                Text(start == null ? '--' : '${start.day}', style: AppText.stat),
+                Text(start == null ? '' : _months[start.month - 1], style: AppText.label.copyWith(fontSize: 9)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${prettySlug(s.sport)} · ${s.sessionType}',
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w700),
                 ),
-              )
-          : null,
+                const SizedBox(height: 3),
+                Text(details, style: AppText.dim, maxLines: 2, overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          trailing,
+        ],
+      ),
     );
   }
 }
