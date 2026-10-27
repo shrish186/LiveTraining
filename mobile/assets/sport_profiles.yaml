@@ -1,0 +1,58 @@
+# Sport profiles: every piece of sport-specific behaviour lives here.
+#
+# To add a sport, add a profile below. Only list the keys that differ:
+# every profile is deep-merged over `general`.
+#
+# Units:
+#   motion magnitude: m/s², gravity removed: | |acc| - 9.81 |, then smoothed
+#   durations: seconds
+#
+# Effort thresholds depend on where the sensor is worn. A shin sensor reads
+# much more acceleration than a waist sensor for the same sprint. Each
+# profile has an `effort` block (the default) and optional `placements`
+# overrides keyed by the placement names in docs/session-format.md.
+
+profiles:
+  general:
+    description: Any sport. Conservative defaults.
+    expected_placements: [waist, phone_armband, phone_pocket, wrist, thigh, chest]
+    motion:
+      smoothing_window_s: 1.0        # rolling mean over the dynamic magnitude
+    effort:
+      threshold: 5.0                 # smoothed magnitude above this = high intensity
+      min_duration_s: 3.0            # shorter bursts are ignored
+      merge_gap_s: 1.0               # bursts closer than this are one effort
+    placements:
+      # The lower leg sees much larger accelerations than the trunk or a pocket.
+      # Starting guesses, to be tuned on real sessions (e.g. Apple Watch strapped above the ankle).
+      ankle:
+        threshold: 9.0
+      shin:
+        threshold: 8.0
+    fatigue:
+      baseline_window_min: 15        # "early" part of the session
+      peak_drop_pct: 5.0             # effort peaks this much lower than baseline...
+      hr_recovery_window_s: 60       # ...AND HR drop over this window after an effort is slower than baseline
+    warmup:                          # live call "Warmed up, go"
+      min_minutes: 5                 # never earlier than this into the session
+      hr_above_rest_bpm: 40          # HR at least this far above WHOOP resting HR...
+      sustain_s: 60                  # ...held for this long
+    readiness:                       # live call at session start, from WHOOP recovery %
+      low_below: 34
+      high_from: 67
+
+  soccer:
+    description: Soccer, training and matches. Repeated sprints, cuts and kicks.
+    expected_placements: [shin, thigh, waist, phone_armband]
+    effort:
+      threshold: 5.5
+      min_duration_s: 2.0            # soccer sprints are short
+    placements:
+      ankle:
+        threshold: 9.5               # untuned starting guess
+      shin:
+        threshold: 8.0               # lower leg sees much larger accelerations
+      thigh:
+        threshold: 6.5
+      waist:
+        threshold: 5.0

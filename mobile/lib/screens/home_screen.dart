@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../app_controller.dart';
+import '../coach/live_coach.dart';
 import '../config.dart';
 import '../sources/whoop_hr_source.dart';
 import '../ui/theme.dart';
@@ -40,6 +41,7 @@ class HomeScreen extends StatelessWidget {
             if (controller.isRecording) ...[
               _RecordingCard(controller: controller),
               const SizedBox(height: 12),
+              if (controller.coach != null) ...[_CoachCard(controller: controller), const SizedBox(height: 12)],
               _HeartRateCard(controller: controller),
               const SizedBox(height: 12),
               _MotionCard(controller: controller),
@@ -422,6 +424,72 @@ class _SessionSetupCard extends StatelessWidget {
               label: const Text('Start session'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+Color _callColor(CallType t) => switch (t) {
+  CallType.readiness => AppColors.accent,
+  CallType.warmedUp => AppColors.good,
+  CallType.effort => AppColors.load,
+  CallType.fatigue => AppColors.warning,
+};
+
+/// Live calls: the latest one large, a status line, and the few before it.
+class _CoachCard extends StatelessWidget {
+  const _CoachCard({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final coach = controller.coach!;
+    final calls = controller.calls;
+    final latest = calls.isEmpty ? null : calls.last;
+    final target = coach.warmupTargetHr;
+    final status = !coach.warmedUp
+        ? (target == null ? 'Warm-up' : 'Warm-up · HR ${target.round()}+')
+        : coach.inEffort
+        ? 'In effort'
+        : 'Efforts: ${coach.efforts.length}';
+    final earlier = calls.reversed.skip(1).take(3).toList();
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionLabel(
+            'Coach',
+            trailing: Flexible(
+              child: Text(status, style: AppText.dim, overflow: TextOverflow.ellipsis),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (latest == null)
+            const Text('Calls appear here as you train.', style: AppText.dim)
+          else ...[
+            Text(latest.title, style: AppText.big.copyWith(fontSize: 24, color: _callColor(latest.type))),
+            const SizedBox(height: 4),
+            Text(latest.detail, style: AppText.body),
+          ],
+          for (final call in earlier) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(color: _callColor(call.type), shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(call.title, style: AppText.dim, overflow: TextOverflow.ellipsis),
+                ),
+                Text(_clock(Duration(milliseconds: call.tMs)), style: AppText.dim),
+              ],
+            ),
+          ],
         ],
       ),
     );

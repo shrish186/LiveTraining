@@ -1,0 +1,48 @@
+{
+  "profile": "soccer",
+  "placement": "phone_armband",
+  "efforts": [
+    {
+      "start_s": 630.3,
+      "end_s": 654.7,
+      "peak": 7.5968,
+      "hr_recovery_bpm": 56.0,
+      "fatigue": false
+    },
+    {
+      "start_s": 780.3,
+      "end_s": 804.6,
+      "peak": 7.3994,
+      "hr_recovery_bpm": 56.38,
+      "fatigue": false
+    },
+    {
+      "start_s": 870.4,
+      "end_s": 894.7,
+      "peak": 7.5092,
+      "hr_recovery_bpm": 56.1,
+      "fatigue": false
+    },
+    {
+      "start_s": 1200.4,
+      "end_s": 1224.7,
+      "peak": 7.3701,
+      "hr_recovery_bpm": 46.93,
+      "fatigue": false
+    },
+    {
+      "start_s": 1440.4,
+      "end_s": 1464.7,
+      "peak": 6.6747,
+      "hr_recovery_bpm": 35.05,
+      "fatigue": true
+    },
+    {
+      "start_s": 1680.5,
+      "end_s": 1704.6,
+      "peak": 6.5319,
+      "hr_recovery_bpm": 31.79,
+      "fatigue": true
+    }
+  ]
+}

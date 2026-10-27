@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'coach/live_coach.dart';
+import 'coach/profiles.dart';
 import 'config.dart';
 import 'recording/session_recorder.dart';
 import 'services/backend_api.dart';
@@ -61,6 +64,11 @@ class AppController extends ChangeNotifier {
   String? recoveryError;
   bool recoveryLoading = false;
 
+  // Live calls (sport profile from assets/sport_profiles.yaml)
+  SportProfiles? _profiles;
+  LiveCoach? coach;
+  final List<CoachCall> calls = [];
+
   // Recording
   SessionRecorder? recorder;
   bool get isRecording => recorder?.isRecording ?? false;
@@ -81,6 +89,7 @@ class AppController extends ChangeNotifier {
   BackendApi get api => BackendApi(settings.backendUrl);
 
   Future<void> init() async {
+    await _loadProfiles();
     _motionPermissionDenied = await _isMotionPermissionDenied();
     _motionSub = motionSource.start().listen(
       _onMotion,
@@ -94,7 +103,10 @@ class AppController extends ChangeNotifier {
       _checkMotionFlowing();
       hrHistory.add(hr.lastBpm?.toDouble());
       motionHistory.add(motionError == null ? motionMagnitude : null);
-      if (isRecording) stats.addMotion(motionMagnitude, tick.inMilliseconds / 1000);
+      if (isRecording) {
+        stats.addMotion(motionMagnitude, tick.inMilliseconds / 1000);
+        _deliver(coach?.tick(recorder!.elapsed.inMilliseconds) ?? const []);
+      }
       notifyListeners();
     });
     await refreshSessions();
@@ -145,7 +157,32 @@ class AppController extends ChangeNotifier {
 
   void _onSample(Sample s) {
     recorder?.add(s);
-    if (isRecording && s.kind == 'hr') stats.addHr(s.value!);
+    if (!isRecording) return;
+    if (s.kind == 'hr') stats.addHr(s.value!);
+    final c = coach;
+    if (c == null) return;
+    final tMs = recorder!.elapsed.inMilliseconds;
+    if (s.kind == 'acc') c.addAcc(tMs, s.x!, s.y!, s.z!);
+    if (s.kind == 'hr') c.addHr(tMs, s.value!);
+  }
+
+  // ---- live calls -----------------------------------------------------------
+
+  Future<void> _loadProfiles() async {
+    try {
+      _profiles = SportProfiles.parse(await rootBundle.loadString('assets/sport_profiles.yaml'));
+    } on Object catch (e) {
+      debugPrint('Sport profiles not loaded, live calls off: $e');
+    }
+  }
+
+  /// Shows, buzzes and records each call as an event in the session file.
+  void _deliver(List<CoachCall> newCalls) {
+    for (final call in newCalls) {
+      calls.add(call);
+      recorder?.markEvent(call.eventLabel);
+      unawaited(call.important ? HapticFeedback.heavyImpact() : HapticFeedback.lightImpact());
+    }
   }
 
   // ---- WHOOP HR -------------------------------------------------------------
@@ -234,6 +271,16 @@ class AppController extends ChangeNotifier {
     await r.start();
     stats = SessionStats();
     recorder = r;
+    calls.clear();
+    final profiles = _profiles;
+    coach = profiles == null
+        ? null
+        : LiveCoach(
+            CoachConfig.fromProfile(profiles.forSport(sport), placement),
+            restingHr: recovery?.restingHr,
+            recoveryScore: recovery?.recoveryScore,
+          );
+    _deliver(coach?.start() ?? const []);
     await WakelockPlus.enable();
     notifyListeners();
   }
@@ -242,6 +289,7 @@ class AppController extends ChangeNotifier {
     final r = recorder;
     if (r == null) return;
     await r.stop();
+    coach = null;
     await WakelockPlus.disable();
     notes = '';
     await refreshSessions();

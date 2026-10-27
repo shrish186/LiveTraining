@@ -13,6 +13,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:live_training/app_controller.dart';
 import 'package:live_training/main.dart';
+import 'package:live_training/coach/live_coach.dart';
+import 'package:live_training/coach/profiles.dart';
 import 'package:live_training/recording/session_recorder.dart';
 import 'package:live_training/services/backend_api.dart';
 import 'package:live_training/services/settings_store.dart';
@@ -141,6 +143,25 @@ void main() {
       c.stats.addHr(bpm);
     }
     c.stats.load = 14.6;
+    final profiles = SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync());
+    c.coach = LiveCoach(CoachConfig.fromProfile(profiles.forSport('soccer'), 'phone_armband'), restingHr: 52);
+    c.calls.addAll([
+      const CoachCall(
+        CallType.readiness,
+        0,
+        'High readiness · 78%',
+        'Recovered well. A good day to push the hard sets.',
+      ),
+      const CoachCall(CallType.warmedUp, 412000, 'Warmed up, go', 'Heart rate 134 has held 40+ above your resting 52.'),
+      const CoachCall(CallType.effort, 1290000, 'Effort 5 · 18 s', 'Peak 7.2 m/s²'),
+      const CoachCall(
+        CallType.fatigue,
+        1350000,
+        'Fatigue building',
+        'Effort 5 was 9% weaker than your early efforts and heart rate recovered slower (21 vs 34 bpm). '
+            'Consider cutting the last set.',
+      ),
+    ]);
     await _pump(tester, c, 'home_recording');
     await tester.runAsync(() => c.recorder!.stop());
   });
