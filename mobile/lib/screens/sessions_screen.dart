@@ -59,11 +59,25 @@ class SessionsScreen extends StatelessWidget {
         onPressed: recordingThis ? null : () => c.upload(s),
       );
     }
+    final failed = status?.startsWith('Failed') ?? false;
     return ListTile(
       title: Text('${s.sport} · ${s.sessionType}'),
-      subtitle: Text(status == null ? details : '$details\n$status'),
+      subtitle: Text(
+        status == null ? details : '$details\n${failed ? 'Upload failed (tap for details)' : status}',
+        style: failed ? TextStyle(color: Theme.of(context).colorScheme.error) : null,
+      ),
       isThreeLine: status != null,
       trailing: trailing,
+      onTap: failed
+          ? () => showDialog<void>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Upload failed'),
+                  content: SingleChildScrollView(child: SelectableText(status!.replaceFirst('Failed: ', ''))),
+                  actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+                ),
+              )
+          : null,
     );
   }
 }

@@ -19,6 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final _url = TextEditingController(text: widget.controller.settings.backendUrl);
   late final _athlete = TextEditingController(text: widget.controller.settings.athleteId?.toString() ?? '');
   String? _status;
+  bool _statusOk = false;
 
   AppController get c => widget.controller;
 
@@ -30,12 +31,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _test() async {
     _save();
-    setState(() => _status = 'Checking…');
+    setState(() {
+      _status = 'Checking ${c.settings.backendUrl}/health …';
+      _statusOk = true;
+    });
     try {
       await BackendApi(c.settings.backendUrl).health();
-      setState(() => _status = 'Backend reachable ✓');
+      setState(() => _status = '✓ Connected to the backend at ${c.settings.backendUrl}');
     } on BackendException catch (e) {
-      setState(() => _status = e.message);
+      setState(() {
+        _status = e.message;
+        _statusOk = false;
+      });
     }
   }
 
@@ -87,7 +94,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(width: 8),
           OutlinedButton(onPressed: _test, child: const Text('Test connection')),
         ]),
-        if (_status != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_status!)),
+        if (_status != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: SelectableText(_status!,
+                style: TextStyle(color: _statusOk ? Colors.green.shade700 : theme.colorScheme.error)),
+          ),
         const Divider(height: 32),
         Text('WHOOP account', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),

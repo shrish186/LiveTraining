@@ -106,7 +106,7 @@ Needs the Flutter SDK (<https://docs.flutter.dev/get-started/install>). The plat
 ```bash
 cd mobile
 flutter pub get
-flutter test            # 21 tests
+flutter test            # 37 tests
 flutter devices         # your phone should be listed
 flutter run --release   # or plain `flutter run` for hot reload
 ```
@@ -284,8 +284,22 @@ Where the spec was open, I picked the simplest option that works and noted it he
     intervals; everything works without them.
 26. **iOS shows its own Bluetooth prompt**, so `permission_handler` is only used on Android: scan and
     connect on Android 12+, location on 11 and older.
-27. **The app talks to the backend over plain HTTP on the LAN.** Android allows cleartext traffic,
-    and iOS uses `NSAllowsLocalNetworking`. Use HTTPS before this leaves the LAN.
+27. **The app talks to the backend over plain HTTP on the LAN.**
+    - Android allows cleartext traffic.
+    - The app's own requests use Dart's sockets, which App Transport Security doesn't cover.
+      Info.plist still sets `NSAllowsLocalNetworking` and HTTP exceptions for the private IP
+      ranges (`192.168.0.0/16`, `10.0.0.0/8`, `172.16.0.0/12`), so anything that does go
+      through `URLSession` works too.
+    - iOS asks for **Local Network** permission on first use.
+    - Use HTTPS before this leaves the LAN.
+29. **iOS minimum is 15.0.** Flutter 3.47 requires it; the plugins need 13.0 at most. The Podfile
+    and the Xcode project both say 15.0.
+30. **The iOS bundle identifier lives in one place:** `mobile/ios/Flutter/AppIdentity.xcconfig`
+    (`APP_BUNDLE_ID = com.shrish186.livetraining`).
+31. **The app checks the Bluetooth adapter before scanning** (off, permission denied, unsupported)
+    and watches it while connected. Motion problems are detected by the absence of data: iOS gives
+    raw accelerometer data without Motion & Fitness access, so that prompt may never appear, and the
+    app only mentions the permission if it is explicitly denied.
 28. **Extra packages:** `uuid` (session IDs) and `device_info_plus` (device model in the metadata).
     Upload status is kept in `shared_preferences`.
 
@@ -294,7 +308,7 @@ Where the spec was open, I picked the simplest option that works and noted it he
 - **Verified in development:**
   - Backend: 58 tests passing
   - Analysis: 15 tests passing
-  - Flutter: 21 tests passing, `flutter analyze` clean
+  - Flutter: 37 tests passing, `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
 - **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development

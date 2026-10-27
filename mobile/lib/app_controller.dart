@@ -43,6 +43,10 @@ class AppController extends ChangeNotifier {
   final Stopwatch _liveClock = Stopwatch()..start();
   double get motionMagnitude => _live.value;
   String? motionError;
+  bool motionErrorNeedsSettings = false;
+  int _lastAccMs = 0;
+  bool _motionPermissionDenied = false;
+  static const motionStaleMs = 3000;
 
   // Recovery card
   Recovery? recovery;
@@ -69,6 +73,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> init() async {
     _deviceModel = await _readDeviceModel();
+    _motionPermissionDenied = await _isMotionPermissionDenied();
     _motionSub = motionSource.start().listen(_onMotion, onError: (Object e) {
       motionError = 'Motion sensor error: $e';
       _dirty = true;
@@ -76,6 +81,7 @@ class AppController extends ChangeNotifier {
     _hrSub = hr.samples.listen(_onSample);
     hr.addListener(notifyListeners);
     _uiTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      _checkMotionFlowing();
       if (_dirty || isRecording) {
         _dirty = false;
         notifyListeners();
@@ -101,8 +107,42 @@ class AppController extends ChangeNotifier {
   }
 
   void _onMotion(Sample s) {
-    if (s.kind == 'acc') _live.add(s.x!, s.y!, s.z!, _liveClock.elapsedMilliseconds);
+    if (s.kind == 'acc') {
+      _lastAccMs = _liveClock.elapsedMilliseconds;
+      _live.add(s.x!, s.y!, s.z!, _lastAccMs);
+    }
     _onSample(s);
+  }
+
+  /// iOS: the raw accelerometer works without Motion & Fitness access, so this only *explains* a
+  /// missing motion stream; it never blocks recording. (permission_handler reports "not asked yet"
+  /// as denied on iOS, so only permanentlyDenied/restricted count.)
+  Future<bool> _isMotionPermissionDenied() async {
+    if (!Platform.isIOS) return false;
+    try {
+      final status = await Permission.sensors.status;
+      return status.isPermanentlyDenied || status.isRestricted;
+    } on Exception {
+      return false;
+    }
+  }
+
+  /// Shows an error when no accelerometer data has arrived for a few seconds, and clears it when
+  /// data flows again.
+  void _checkMotionFlowing() {
+    final stale = _liveClock.elapsedMilliseconds - _lastAccMs > motionStaleMs;
+    final String? message = !stale
+        ? null
+        : _motionPermissionDenied
+            ? 'No motion data: Motion & Fitness access is off for Live Training. Turn it on in '
+                'Settings › Privacy & Security › Motion & Fitness.'
+            : 'No motion data from the phone\'s sensors. Keep the app open on screen; if this stays, '
+                'force-quit and reopen the app.';
+    if (message != motionError && (stale || motionError != null)) {
+      motionError = message;
+      motionErrorNeedsSettings = stale && _motionPermissionDenied;
+      _dirty = true;
+    }
   }
 
   void _onSample(Sample s) {
@@ -120,7 +160,10 @@ class AppController extends ChangeNotifier {
           : [Permission.locationWhenInUse];
       final results = await needed.request();
       if (results.values.any((s) => !s.isGranted)) {
-        hr.reportError('Bluetooth permission denied. Allow it in system settings.');
+        hr.reportError(
+          'Bluetooth permission denied. Allow "Nearby devices" in Settings › Apps › Live Training › Permissions.',
+          needsSettings: true,
+        );
         return;
       }
     }

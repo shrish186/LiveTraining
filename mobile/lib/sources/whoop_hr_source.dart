@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
 
 import '../ble/heart_rate_parser.dart';
+import 'ble_status_message.dart';
 import 'motion_source.dart';
 
 enum HrConnection { idle, scanning, connecting, connected, reconnecting, error }
@@ -28,6 +30,9 @@ class WhoopHrSource extends ChangeNotifier {
   HrConnection state = HrConnection.idle;
   String? deviceName;
   String? error;
+
+  /// True when the fix for [error] is in the system Settings app (e.g. a denied permission).
+  bool errorNeedsSettings = false;
   int? lastBpm;
 
   String? _deviceId;
@@ -35,25 +40,68 @@ class WhoopHrSource extends ChangeNotifier {
   StreamSubscription<DiscoveredDevice>? _scanSub;
   StreamSubscription<ConnectionStateUpdate>? _connSub;
   StreamSubscription<List<int>>? _notifySub;
+  StreamSubscription<BleStatus>? _statusSub;
+  BleStatus _status = BleStatus.unknown;
   Timer? _retry;
 
   /// `hr` samples (bpm) and `rr` samples (ms).
   Stream<Sample> get samples => _samples.stream;
 
-  void _set(HrConnection s, {String? err}) {
+  void _set(HrConnection s, {String? err, bool needsSettings = false}) {
     state = s;
     error = err;
+    errorNeedsSettings = needsSettings;
     notifyListeners();
   }
 
   /// For failures found before scanning starts, e.g. a denied permission.
-  void reportError(String message) => _set(HrConnection.error, err: message);
+  void reportError(String message, {bool needsSettings = false}) =>
+      _set(HrConnection.error, err: message, needsSettings: needsSettings);
+
+  /// Waits for the adapter state (on iOS the first call also shows the Bluetooth permission prompt,
+  /// so allow time for the user to answer it).
+  Future<BleStatus> _adapterStatus() => _ble.statusStream
+      .firstWhere((s) => s != BleStatus.unknown)
+      .timeout(const Duration(seconds: 30), onTimeout: () => BleStatus.unknown);
+
+  /// Follows the adapter while a connection is wanted: Bluetooth turned off shows an error,
+  /// turned back on reconnects.
+  void _watchAdapter() {
+    _statusSub ??= _ble.statusStream.listen((status) {
+      final was = _status;
+      _status = status;
+      if (!_wanted) return;
+      final message = bleStatusMessage(status, isIOS: Platform.isIOS);
+      if (message != null) {
+        _notifySub?.cancel();
+        _notifySub = null;
+        lastBpm = null;
+        _set(HrConnection.error, err: message, needsSettings: bleStatusNeedsSettings(status));
+      } else if (status == BleStatus.ready && was != BleStatus.ready && was != BleStatus.unknown &&
+          _deviceId != null) {
+        _set(HrConnection.reconnecting);
+        _connSub?.cancel();
+        _connectTo(_deviceId!);
+      }
+    });
+  }
 
   Future<void> connect() async {
     if (_wanted && state != HrConnection.error) return;
-    _wanted = true;
     await _cancelAll();
     _set(HrConnection.scanning);
+
+    final status = await _adapterStatus();
+    if (state != HrConnection.scanning) return; // disconnected while waiting
+    final problem = bleStatusMessage(status, isIOS: Platform.isIOS);
+    if (problem != null) {
+      _wanted = false;
+      _set(HrConnection.error, err: problem, needsSettings: bleStatusNeedsSettings(status));
+      return;
+    }
+    _wanted = true;
+    _status = status;
+    _watchAdapter();
 
     final found = <DiscoveredDevice>[];
     final done = Completer<DiscoveredDevice?>();
@@ -85,8 +133,7 @@ class WhoopHrSource extends ChangeNotifier {
     if (!_wanted) return;
     if (device == null) {
       _wanted = false;
-      _set(HrConnection.error,
-          err: 'No heart-rate broadcast found. In the WHOOP app, turn on Heart Rate Broadcast.');
+      _set(HrConnection.error, err: hrNotFoundMessage);
       return;
     }
     _deviceId = device.id;
@@ -171,6 +218,7 @@ class WhoopHrSource extends ChangeNotifier {
   @override
   void dispose() {
     _cancelAll();
+    _statusSub?.cancel();
     _samples.close();
     super.dispose();
   }

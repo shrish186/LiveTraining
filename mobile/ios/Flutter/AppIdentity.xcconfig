@@ -1,0 +1,3 @@
+// Change the iOS bundle identifier HERE (one place). It must be unique to you for free
+// Apple ID signing, e.g. com.<your-github-or-name>.livetraining. Then re-run `flutter run`.
+APP_BUNDLE_ID = com.shrish186.livetraining

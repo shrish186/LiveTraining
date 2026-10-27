@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../app_controller.dart';
 import '../config.dart';
@@ -71,7 +72,12 @@ class _HeartRateCard extends StatelessWidget {
                 TextSpan(text: ' bpm', style: theme.textTheme.titleLarge),
               ])),
             ),
-            Text(label, style: theme.textTheme.bodySmall),
+            Text(label,
+                style: hr.state == HrConnection.error
+                    ? theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error)
+                    : theme.textTheme.bodySmall),
+            if (hr.state == HrConnection.error && hr.errorNeedsSettings)
+              const TextButton(onPressed: openAppSettings, child: Text('Open Settings')),
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
@@ -118,6 +124,8 @@ class _MotionCard extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Text(controller.motionError!, style: TextStyle(color: theme.colorScheme.error)),
             ),
+          if (controller.motionError != null && controller.motionErrorNeedsSettings)
+            const TextButton(onPressed: openAppSettings, child: Text('Open Settings')),
         ]),
       ),
     );
@@ -145,7 +153,10 @@ class _RecoveryCard extends StatelessWidget {
     if (controller.recoveryLoading && r == null) {
       body = const Center(child: CircularProgressIndicator());
     } else if (r == null) {
-      body = Text(controller.recoveryError ?? 'No recovery yet.', style: theme.textTheme.bodyMedium);
+      body = Text(controller.recoveryError ?? 'No recovery yet.',
+          style: controller.recoveryError == null
+              ? theme.textTheme.bodyMedium
+              : theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error));
     } else if (score == null) {
       body = Text('Recovery not scored yet (${r.scoreState ?? 'pending'}).');
     } else {
