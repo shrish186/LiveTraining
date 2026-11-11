@@ -24,7 +24,7 @@ Change dimensions in `sensor_case/sensor_case.py` (all parameters at the top) an
 
 - **The XIAO's IMU tops out at ±16 g.** Hard landings at the shin reach 20–30 g (our ankle session peaked at 26 g),
   so impact peaks clip. Fine for efforts, strikes, deliveries and drift; not for true peak impact.
-- Battery life, firmware and the app's `xiao` motion source are next (the session format already has `xiao`).
+- Firmware: `firmware/` (flash by drag and drop). The app's Squad tab connects to it. Battery life is unmeasured.
 
 ## Production direction (once people want it)
 

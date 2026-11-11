@@ -444,7 +444,7 @@ Where the spec was open, I picked the simplest option that works and noted it he
 - **Verified in development:**
   - Backend: 65 tests passing
   - Analysis: 50 tests passing
-  - Flutter: 80 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
+  - Flutter: 81 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
 - **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development

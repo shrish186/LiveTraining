@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -67,6 +68,33 @@ void main() {
       ),
     )!;
     expect(p.acc[0][0] / 9.81, closeTo(300, 1e-6));
+  });
+
+  test('parses packets built by the firmware code itself (hardware/firmware/test_packet.cpp)', () {
+    List<int> bytes(String hex) => [
+      for (var i = 0; i < hex.length; i += 2) int.parse(hex.substring(i, i + 2), radix: 16),
+    ];
+    final lines = File('test/fixtures/sensor_packet.hex').readAsLinesSync();
+
+    final a = parseSensorPacket(bytes(lines[0]))!;
+    expect(a.seq, 513);
+    expect(a.firstMs, 123456789);
+    expect(a.periodUs, 9615);
+    expect(a.count, 3);
+    expect(a.acc[0][1], closeTo(9.81, 1e-9));
+    expect(a.acc[1][0] / 9.81, closeTo(-2.5, 1e-9));
+    expect(a.acc[1][1] / 9.81, closeTo(16, 1e-9));
+    expect(a.gyro[2][0], closeTo(70 * math.pi / 180, 1e-9));
+    expect(a.gyro[2][2], closeTo(-70 * math.pi / 180, 1e-9));
+
+    final b = parseSensorPacket(bytes(lines[1]))!;
+    expect(b.seq, 65535);
+    expect(b.firstMs, 4000000000);
+    expect(b.gyro, isEmpty);
+    expect(b.acc[0][0] / 9.81, closeTo(250, 1e-6), reason: 'high-g scale');
+    expect(b.acc[0][1] / 9.81, closeTo(-1, 1e-6));
+
+    expect(lines[2], '19 38 0 1', reason: 'samples per notification, as in docs/sensor-protocol.md');
   });
 
   test('rejects malformed packets', () {
