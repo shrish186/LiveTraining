@@ -80,6 +80,7 @@ pytest
 # analysis
 cd analysis && pip install -r requirements.txt
 python make_synthetic_session.py --out output/
+python make_synthetic_spell.py --out output/ --marks   # fake fast-bowling spell (cricket, leg sensor)
 python analyze_session.py output/synthetic.csv --metadata output/synthetic.json --profile soccer
 python validate_session.py <session.csv>   # detection vs your Mark taps, threshold suggestion
 python import_sensorlog.py "<SensorLog file>.csv" --placement ankle   # watch data from the SensorLog app

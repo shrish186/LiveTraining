@@ -115,3 +115,21 @@ def test_validate_deliveries_against_marks(tmp_path):
     assert "MISSED  mark 06:20" in text
     assert "EXTRA   delivery" in text
     assert "precision   86%   recall   86%" in text
+
+
+def test_synthetic_spell_is_found_and_scored(tmp_path):
+    import json
+
+    import analyze_session
+    import make_synthetic_spell
+    import validate_session
+
+    rows, meta, deliveries = make_synthetic_spell.generate(overs=2, marks=True)
+    (tmp_path / "s.csv").write_text("\n".join(rows) + "\n")
+    (tmp_path / "s.json").write_text(json.dumps(meta))
+    r = analyze_session.analyze(tmp_path / "s.csv", tmp_path / "s.json")
+    found = r["steps"]["actions"]["actions"]
+    assert len(found) == len(deliveries) == 12
+    assert all(abs(a.t_s - d) < 0.05 for a, d in zip(found, deliveries))
+    assert r["steps"]["actions"]["drift"].peak_g_pct < -5      # the last over lands softer
+    assert "precision  100%   recall  100%" in validate_session.report(r, "mark", 5, 15).split("vs marks")[1]
