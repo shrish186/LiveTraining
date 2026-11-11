@@ -33,6 +33,9 @@ class LocalSession {
   }
 
   /// True for sessions recorded by the Apple Watch app and received from the watch.
+  /// True for sessions with data from our leg sensor.
+  bool get fromSensor => (metadata['sources'] as List? ?? const []).any((s) => s is Map && s['id'] == 'xiao');
+
   bool get fromWatch => (metadata['sources'] as List? ?? const []).any((s) => s is Map && s['id'] == 'apple_watch');
 }
 

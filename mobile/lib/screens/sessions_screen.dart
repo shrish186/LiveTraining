@@ -149,7 +149,7 @@ class _SessionTile extends StatelessWidget {
     final details = [
       if (start != null) '${two(start.hour)}:${two(start.minute)}',
       if (recordingThis) 'recording…' else '${(s.duration.inSeconds / 60).toStringAsFixed(1)} min',
-      if (s.fromWatch) 'Apple Watch',
+      if (s.fromSensor) 'Leg sensor' else if (s.fromWatch) 'Apple Watch',
       prettySlug(s.metadata['placement'] as String? ?? ''),
       if (!s.complete && !recordingThis) 'incomplete',
     ].where((e) => e.isNotEmpty).join(' · ');

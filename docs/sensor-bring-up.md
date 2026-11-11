@@ -16,10 +16,14 @@ plain XIAO nRF52840 has no motion sensor).
 
 ## 2. Connect the app (10 min)
 
-1. On the phone: app › **Squad** › **Add player** (any name), then **Add sensor** on the player card. `LT-xxxx` appears. Pick it.
-2. The XIAO's LED turns **green**.
-3. Start a squad recording, shake the board for 10 s, put it flat on the table for 10 s, stop.
-4. Open the session report.
+1. On the phone: **Live** tab › **Leg sensor** card › **Connect sensor**. `LT-xxxx` appears. Pick it. (The app
+   remembers it and reconnects by itself next time.)
+2. The XIAO's LED turns **green**, and the card shows the live peak g and about **104 Hz**.
+3. **Start session**, shake the board for 10 s, put it flat on the table for 10 s, hold to stop.
+4. Sessions tab › tap the session for the report. To get the files onto the laptop: long-press the session ›
+   **Share files** (AirDrop works).
+
+For several players at once, use the **Squad** tab instead: one sensor per player.
 
 **Expect:** motion while shaking, about 1 g while flat, a data-quality card that says **good**, rate ~104 Hz.
 **Check with the scripts** (after uploading or copying the session to the laptop):
