@@ -60,6 +60,9 @@ logic and the sport profiles.
   the parser and the firmware together. Squad sessions (`mobile/lib/squad/`) record one normal session per player.
 - While our watch app streams live motion, the phone's coach uses the leg (source `apple_watch`) instead of the
   phone. Batched samples carry their age (`Sample.ageMs`) so the recorder stamps them when measured.
+- The product is our leg sensor first. WHOOP recovery/strain/backend UI is behind `whoopEnabled` in `mobile/lib/config.dart`
+  (currently false); the code stays. On the Live tab a connected sensor (`AppController.sensor`) owns the coach and the
+  session's placement, even while it reconnects; any BLE heart-rate strap is optional.
 - Live calls are written to the session as `call_*` events. Accuracy is checked with
   `analysis/validate_session.py` against the athlete's `mark` events.
 - WHOOP token refresh invalidates the old access and refresh tokens. Always persist the new refresh

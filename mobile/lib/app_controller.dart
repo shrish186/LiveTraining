@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +17,7 @@ import 'services/session_store.dart';
 import 'services/settings_store.dart';
 import 'sources/motion_source.dart';
 import 'sources/phone_motion_source.dart';
+import 'sources/sensor_link.dart';
 import 'sources/watch_motion_source.dart';
 import 'sources/whoop_hr_source.dart';
 import 'util/day_summary.dart';
@@ -26,10 +28,18 @@ import 'util/motion.dart';
 /// Owns the sources and the recorder. Each source has ONE subscription, fanned out to the live
 /// readouts and (while recording) to the recorder. The UI refreshes at 5 Hz (one tick).
 class AppController extends ChangeNotifier {
-  AppController(this.settings, {MotionSource? motionSource, WhoopHrSource? hrSource, WatchMotionSource? watchSource})
-    : motionSource = motionSource ?? PhoneMotionSource(),
-      hr = hrSource ?? WhoopHrSource(),
-      watch = watchSource ?? WatchMotionSource() {
+  AppController(
+    this.settings, {
+    MotionSource? motionSource,
+    WhoopHrSource? hrSource,
+    WatchMotionSource? watchSource,
+    SensorLink Function(FoundSensor sensor)? sensorLinkFactory,
+    SensorScanner? sensorScanner,
+  }) : motionSource = motionSource ?? PhoneMotionSource(),
+       hr = hrSource ?? WhoopHrSource(),
+       watch = watchSource ?? WatchMotionSource(),
+       _linkFor = sensorLinkFactory ?? SensorLink.new,
+       _scanner = sensorScanner {
     sport = settings.sport;
     sessionType = settings.sessionType;
     placement = settings.placement;
@@ -43,6 +53,28 @@ class AppController extends ChangeNotifier {
   /// it instead of the phone (the phone keeps recording as a backup).
   final WatchMotionSource watch;
 
+  /// Our leg sensor, when one is connected. It is the motion that counts: while it streams, the
+  /// coach, the Motion card and the session's placement follow it (phone and watch keep recording).
+  SensorLink? sensor;
+  final SensorLink Function(FoundSensor sensor) _linkFor;
+  final SensorScanner? _scanner;
+  StreamSubscription<Sample>? _sensorSub;
+  final LiveMagnitude _liveSensor = LiveMagnitude();
+  int? _lastSensorMs;
+  final List<(int, double)> _sensorRecent = []; // (live ms, total g) over the last 3 s
+  bool get sensorLive => _lastSensorMs != null && _liveClock.elapsedMilliseconds - _lastSensorMs! < motionStaleMs;
+
+  /// Samples per second from the sensor over the last 3 s (0 when it stopped).
+  double get sensorRateHz {
+    if (!sensorLive || _sensorRecent.length < 2) return 0;
+    final span = (_sensorRecent.last.$1 - _sensorRecent.first.$1) / 1000;
+    return span <= 0 ? 0 : (_sensorRecent.length - 1) / span;
+  }
+
+  /// Hardest total acceleration in the last 3 s, in g (gravity included: standing still is 1 g).
+  double? get sensorPeakG =>
+      !sensorLive || _sensorRecent.isEmpty ? null : _sensorRecent.map((e) => e.$2).reduce((a, b) => a > b ? a : b);
+
   // Per-session choices (defaults come from Settings, editable on Home before Start).
   late String sport;
   late String sessionType;
@@ -55,7 +87,11 @@ class AppController extends ChangeNotifier {
   final LiveMagnitude _liveWatch = LiveMagnitude();
   int? _lastWatchMs;
   bool get watchLive => _lastWatchMs != null && _liveClock.elapsedMilliseconds - _lastWatchMs! < motionStaleMs;
-  double get motionMagnitude => watchLive ? _liveWatch.value : _live.value;
+  double get motionMagnitude => sensorLive
+      ? _liveSensor.value
+      : watchLive
+      ? _liveWatch.value
+      : _live.value;
   String? motionError;
   bool motionErrorNeedsSettings = false;
   int _lastAccMs = 0;
@@ -131,8 +167,100 @@ class AppController extends ChangeNotifier {
       notifyListeners();
     });
     await refreshSessions();
-    unawaited(refreshRecovery());
+    if (whoopEnabled) unawaited(refreshRecovery());
+    final id = settings.sensorId;
+    if (id != null) unawaited(connectSensor(FoundSensor(id, settings.sensorName ?? 'Sensor')));
   }
+
+  // ---- our leg sensor ---------------------------------------------------------
+
+  /// Bluetooth permission (Android asks at run time; iOS shows its own prompt on first use).
+  /// Returns false and explains in [bluetoothError] when it is refused.
+  Future<bool> _bluetoothAllowed() async {
+    if (!Platform.isAndroid) return true;
+    // Android 12+ needs scan/connect; Android 11 and older needs location to scan instead.
+    // Requesting all three works on every version without knowing the SDK level:
+    // - on Android 11 and older, permission_handler reports scan/connect as granted;
+    // - on Android 12+, location is not in the manifest (maxSdkVersion 30), so no dialog appears.
+    final results = await [
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+      Permission.locationWhenInUse,
+    ].request();
+    return results[Permission.bluetoothScan]!.isGranted && results[Permission.bluetoothConnect]!.isGranted;
+  }
+
+  String? bluetoothError;
+
+  /// Leg sensors nearby (about 5 s).
+  Future<List<FoundSensor>> scanSensors() async {
+    if (!await _bluetoothAllowed()) {
+      bluetoothError =
+          'Bluetooth permission denied. Allow "Nearby devices" in Settings › Apps › Live Training › Permissions.';
+      notifyListeners();
+      return const [];
+    }
+    bluetoothError = null;
+    return (_scanner ?? SensorScanner()).scan();
+  }
+
+  /// Connects to [found], remembers it for next time, and keeps reconnecting if it drops.
+  Future<void> connectSensor(FoundSensor found) async {
+    if (isRecording && sensor != null) return; // don't swap sensors mid-session
+    await disconnectSensor(forget: false);
+    if (!await _bluetoothAllowed()) {
+      bluetoothError =
+          'Bluetooth permission denied. Allow "Nearby devices" in Settings › Apps › Live Training › Permissions.';
+      notifyListeners();
+      return;
+    }
+    settings.rememberSensor(found.id, found.name);
+    final link = _linkFor(found);
+    sensor = link;
+    link.addListener(notifyListeners);
+    _sensorSub = link.start().listen(_onSensor);
+    // A leg sensor isn't in a phone armband or pocket: default the placement to the ankle.
+    if (placement.startsWith('phone')) placement = 'ankle';
+    notifyListeners();
+  }
+
+  Future<void> disconnectSensor({bool forget = true}) async {
+    final link = sensor;
+    if (link == null) {
+      if (forget) settings.rememberSensor(null, null);
+      return;
+    }
+    if (isRecording && forget) return;
+    sensor = null;
+    await _sensorSub?.cancel();
+    _sensorSub = null;
+    link.removeListener(notifyListeners);
+    await link.stop();
+    _lastSensorMs = null;
+    _sensorRecent.clear();
+    if (forget) settings.rememberSensor(null, null);
+    notifyListeners();
+  }
+
+  void _onSensor(Sample s) {
+    recorder?.add(s);
+    if (s.kind != 'acc') return;
+    final now = _liveClock.elapsedMilliseconds;
+    _lastSensorMs = now;
+    final x = s.x!, y = s.y!, z = s.z!;
+    _liveSensor.add(x, y, z, now - s.ageMs);
+    _sensorRecent.add((now - s.ageMs, math.sqrt(x * x + y * y + z * z) / gravity));
+    while (_sensorRecent.isNotEmpty && _sensorRecent.first.$1 < now - 3000) {
+      _sensorRecent.removeAt(0);
+    }
+    final c = coach;
+    if (!isRecording || c == null) return;
+    c.addAcc(recorder!.elapsed.inMilliseconds - s.ageMs, x, y, z);
+  }
+
+  /// Feeds one sample as if it came from our sensor (widget tests and previews).
+  @visibleForTesting
+  void debugAddSensor(Sample s) => _onSensor(s);
 
   /// Feeds one sample as if it came from the motion source (widget tests and previews).
   @visibleForTesting
@@ -149,7 +277,7 @@ class AppController extends ChangeNotifier {
     _liveWatch.add(s.x!, s.y!, s.z!, now - s.ageMs);
     recorder?.add(s);
     final c = coach;
-    if (!isRecording || c == null) return;
+    if (!isRecording || c == null || sensor != null) return; // a connected sensor owns the coach
     c.addAcc(recorder!.elapsed.inMilliseconds - s.ageMs, s.x!, s.y!, s.z!);
   }
 
@@ -198,7 +326,9 @@ class AppController extends ChangeNotifier {
     final c = coach;
     if (c == null) return;
     final tMs = recorder!.elapsed.inMilliseconds;
-    if (s.kind == 'acc' && !watchLive) c.addAcc(tMs, s.x!, s.y!, s.z!); // the leg wins when it streams
+    // A leg wins: the connected sensor (even while it reconnects: its thresholds aren't the phone's),
+    // else the watch while it streams.
+    if (s.kind == 'acc' && sensor == null && !watchLive) c.addAcc(tMs, s.x!, s.y!, s.z!);
     if (s.kind == 'hr') c.addHr(tMs, s.value!);
   }
 
@@ -224,26 +354,13 @@ class AppController extends ChangeNotifier {
   // ---- WHOOP HR -------------------------------------------------------------
 
   Future<void> connectHr() async {
-    if (Platform.isAndroid) {
-      // Android 12+ needs scan/connect; Android 11 and older needs location to scan instead.
-      // Requesting all three works on every version without knowing the SDK level:
-      // - on Android 11 and older, permission_handler reports scan/connect as granted;
-      // - on Android 12+, location is not in the manifest (maxSdkVersion 30), so no dialog appears.
-      // Only scan/connect are required here; a missing location shows up as a scan error.
-      final results = await [
-        Permission.bluetoothScan,
-        Permission.bluetoothConnect,
-        Permission.locationWhenInUse,
-      ].request();
-      if (!results[Permission.bluetoothScan]!.isGranted || !results[Permission.bluetoothConnect]!.isGranted) {
-        hr.reportError(
-          'Bluetooth permission denied. Allow "Nearby devices" in Settings › Apps › Live Training › Permissions.',
-          needsSettings: true,
-        );
-        return;
-      }
+    if (!await _bluetoothAllowed()) {
+      hr.reportError(
+        'Bluetooth permission denied. Allow "Nearby devices" in Settings › Apps › Live Training › Permissions.',
+        needsSettings: true,
+      );
+      return;
     }
-    // iOS shows its Bluetooth prompt by itself on first use.
     await hr.connect();
   }
 
@@ -252,6 +369,7 @@ class AppController extends ChangeNotifier {
   // ---- recovery -------------------------------------------------------------
 
   Future<void> refreshRecovery() async {
+    if (!whoopEnabled) return;
     final id = settings.athleteId;
     if (settings.backendUrl.isEmpty) {
       recovery = null;
@@ -298,8 +416,8 @@ class AppController extends ChangeNotifier {
 
   Future<void> startSession() async {
     if (isRecording) return;
-    // With the watch streaming, the motion that counts is the leg's: use where the watch is worn.
-    final sessionPlacement = watchLive ? (watch.placement ?? placement) : placement;
+    // With the watch streaming (and not our sensor), the motion that counts is the watch's: use where it is worn.
+    final sessionPlacement = sensor == null && watchLive ? (watch.placement ?? placement) : placement;
     final r = SessionRecorder(
       directory: await SessionStore.directory(),
       sessionId: const Uuid().v4(),
@@ -352,7 +470,7 @@ class AppController extends ChangeNotifier {
     await WakelockPlus.disable();
     notes = '';
     await refreshSessions();
-    unawaited(refreshRecovery()); // WHOOP's day strain has moved
+    if (whoopEnabled) unawaited(refreshRecovery()); // WHOOP's day strain has moved
     notifyListeners();
   }
 
@@ -408,6 +526,8 @@ class AppController extends ChangeNotifier {
     _motionSub?.cancel();
     _hrSub?.cancel();
     _watchSub?.cancel();
+    _sensorSub?.cancel();
+    sensor?.stop();
     motionSource.stop();
     watch.stop();
     hr.removeListener(notifyListeners);

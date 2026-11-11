@@ -4,10 +4,12 @@ import 'package:permission_handler/permission_handler.dart';
 import '../app_controller.dart';
 import '../coach/live_coach.dart';
 import '../config.dart';
+import '../sources/sensor_link.dart';
 import '../sources/whoop_hr_source.dart';
 import '../util/day_summary.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'sensor_picker.dart';
 
 const _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -43,19 +45,23 @@ class HomeScreen extends StatelessWidget {
               _RecordingCard(controller: controller),
               const SizedBox(height: 12),
               if (controller.coach != null) ...[_CoachCard(controller: controller), const SizedBox(height: 12)],
-              _HeartRateCard(controller: controller),
+              _SensorCard(controller: controller),
               const SizedBox(height: 12),
-              _MotionCard(controller: controller),
+              if (controller.sensor == null) ...[_MotionCard(controller: controller), const SizedBox(height: 12)],
+              if (controller.hr.state != HrConnection.idle) _HeartRateCard(controller: controller),
             ] else ...[
-              _RecoveryCard(controller: controller, onOpenSettings: onOpenSettings),
+              _SensorCard(controller: controller),
+              const SizedBox(height: 12),
+              _SessionSetupCard(controller: controller),
               const SizedBox(height: 12),
               _TodayCard(controller: controller),
               const SizedBox(height: 12),
+              if (whoopEnabled) ...[
+                _RecoveryCard(controller: controller, onOpenSettings: onOpenSettings),
+                const SizedBox(height: 12),
+              ],
+              if (controller.sensor == null) ...[_MotionCard(controller: controller), const SizedBox(height: 12)],
               _HeartRateCard(controller: controller),
-              const SizedBox(height: 12),
-              _MotionCard(controller: controller),
-              const SizedBox(height: 12),
-              _SessionSetupCard(controller: controller),
             ],
           ],
         );
@@ -74,12 +80,13 @@ class _StatusRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final hr = controller.hr;
     final (hrColor, hrText) = switch (hr.state) {
-      HrConnection.connected => (AppColors.good, 'Strap connected'),
-      HrConnection.scanning || HrConnection.connecting => (AppColors.warning, 'Connecting…'),
-      HrConnection.reconnecting => (AppColors.warning, 'Reconnecting…'),
-      HrConnection.error => (AppColors.danger, 'Strap issue'),
-      HrConnection.idle => (AppColors.textFaint, 'Strap off'),
+      HrConnection.connected => (AppColors.good, 'HR strap'),
+      HrConnection.scanning || HrConnection.connecting => (AppColors.warning, 'HR connecting…'),
+      HrConnection.reconnecting => (AppColors.warning, 'HR reconnecting…'),
+      HrConnection.error => (AppColors.danger, 'HR strap issue'),
+      HrConnection.idle => (AppColors.textFaint, 'No HR strap'),
     };
+    final (sColor, sText) = _sensorStatus(controller);
     final (beColor, beText) = controller.recoveryLoading
         ? (AppColors.warning, 'Syncing…')
         : controller.recovery != null
@@ -89,14 +96,16 @@ class _StatusRow extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        StatusPill(color: hrColor, text: hrText),
-        StatusPill(
-          color: beColor,
-          text: beText,
-          onTap: controller.recovery == null && controller.settings.backendUrl.isEmpty
-              ? onOpenSettings
-              : controller.refreshRecovery,
-        ),
+        StatusPill(color: sColor, text: sText),
+        if (hr.state != HrConnection.idle) StatusPill(color: hrColor, text: hrText),
+        if (whoopEnabled)
+          StatusPill(
+            color: beColor,
+            text: beText,
+            onTap: controller.recovery == null && controller.settings.backendUrl.isEmpty
+                ? onOpenSettings
+                : controller.refreshRecovery,
+          ),
       ],
     );
   }
@@ -223,7 +232,14 @@ class _TodayCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final day = controller.today;
-    final strain = controller.dayStrain?.strain;
+    final strain = whoopEnabled ? controller.dayStrain?.strain : null;
+    // Without WHOOP the ring shows today's load against the athlete's usual training day (4 weeks).
+    final usualDay = controller.trends.averageWeekLoad / 7;
+    final ringValue = whoopEnabled
+        ? (strain == null ? 0.0 : strain / maxStrain)
+        : usualDay <= 0
+        ? (day.load > 0 ? 1.0 : 0.0)
+        : (day.load / (usualDay * 1.5)).clamp(0.0, 1.0);
     final (fatigueColor, fatigueText) = switch ((day.sessions, day.fatigue)) {
       (0, _) => (AppColors.textFaint, 'No sessions yet today'),
       (_, FatigueStatus.building) => (
@@ -251,14 +267,24 @@ class _TodayCard extends StatelessWidget {
           Row(
             children: [
               RingGauge(
-                value: strain == null ? 0 : strain / maxStrain,
-                color: AppColors.accent,
+                value: ringValue,
+                color: whoopEnabled ? AppColors.accent : AppColors.load,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(strain?.toStringAsFixed(1) ?? '—', style: AppText.big.copyWith(fontSize: 40)),
+                    Text(
+                      whoopEnabled ? (strain?.toStringAsFixed(1) ?? '—') : day.load.toStringAsFixed(0),
+                      style: AppText.big.copyWith(fontSize: 40),
+                    ),
                     const SizedBox(height: 2),
-                    Text(strain == null ? 'NO STRAIN' : 'DAY STRAIN', style: AppText.label.copyWith(fontSize: 9)),
+                    Text(
+                      whoopEnabled
+                          ? (strain == null ? 'NO STRAIN' : 'DAY STRAIN')
+                          : usualDay > 0
+                          ? 'LOAD · USUAL ${usualDay.round()}'
+                          : 'LOAD',
+                      style: AppText.label.copyWith(fontSize: 9),
+                    ),
                   ],
                 ),
               ),
@@ -267,7 +293,10 @@ class _TodayCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _MiniStat(label: 'Training load', value: day.load.toStringAsFixed(1), unit: ''),
+                    if (whoopEnabled)
+                      _MiniStat(label: 'Training load', value: day.load.toStringAsFixed(1), unit: '')
+                    else
+                      _MiniStat(label: 'Training time', value: _minutes(day.trainingTime), unit: 'min'),
                     const SizedBox(height: 14),
                     _MiniStat(label: 'Efforts', value: '${day.efforts}', unit: ''),
                     if (day.impactLoad != null) ...[
@@ -377,7 +406,7 @@ class _HeartRateCard extends StatelessWidget {
         hr.state == HrConnection.connecting ||
         hr.state == HrConnection.reconnecting;
     final status = switch (hr.state) {
-      HrConnection.idle => 'Turn on Heart Rate Broadcast in the WHOOP app, then connect.',
+      HrConnection.idle => 'Optional: any Bluetooth heart-rate strap, or a WHOOP band with Heart Rate Broadcast on.',
       HrConnection.scanning => 'Searching for your strap…',
       HrConnection.connecting => 'Connecting to ${hr.deviceName}…',
       HrConnection.connected => hr.deviceName ?? 'Connected',
@@ -389,7 +418,7 @@ class _HeartRateCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionLabel(
-            'Heart rate',
+            connected || busy || controller.isRecording ? 'Heart rate' : 'Heart rate (optional)',
             trailing: busy
                 ? const SizedBox.square(
                     dimension: 14,
@@ -442,8 +471,166 @@ class _HeartRateCard extends StatelessWidget {
                       style: FilledButton.styleFrom(backgroundColor: AppColors.heart, foregroundColor: Colors.white),
                       onPressed: controller.connectHr,
                       icon: const Icon(Icons.bluetooth_rounded),
-                      label: const Text('Connect WHOOP HR'),
+                      label: const Text('Connect HR strap'),
                     ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+(Color, String) _sensorStatus(AppController c) {
+  final link = c.sensor;
+  if (link == null) return (AppColors.textFaint, 'No sensor');
+  return switch (link.state) {
+    SensorState.live when c.sensorLive => (AppColors.good, link.sensor.name),
+    SensorState.lost => (AppColors.danger, '${link.sensor.name} out of range'),
+    _ => (AppColors.warning, '${link.sensor.name} connecting…'),
+  };
+}
+
+/// Our leg sensor: connect, live signal (peak g, rate, lost packets), change or forget.
+class _SensorCard extends StatelessWidget {
+  const _SensorCard({required this.controller});
+
+  final AppController controller;
+
+  Future<void> _pick(BuildContext context) async {
+    final picked = await showSensorPicker(context, title: 'Connect a sensor', scan: controller.scanSensors);
+    if (picked != null) await controller.connectSensor(picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    final link = c.sensor;
+    final (color, status) = _sensorStatus(c);
+    final error = c.bluetoothError;
+    if (link == null) {
+      return AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionLabel(
+              'Leg sensor',
+              trailing: Icon(Icons.sensors_off_rounded, size: 16, color: AppColors.textFaint),
+            ),
+            const SizedBox(height: 12),
+            const Text('No sensor connected', style: AppText.body),
+            const SizedBox(height: 4),
+            const Text(
+              'Switch the sensor on (blue blinks) and connect. Wear it above the ankle, outside of the leg, arrow '
+              'toward the foot, strap tight.',
+              style: AppText.dim,
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 10),
+              Text(error, style: AppText.dim.copyWith(color: AppColors.danger)),
+              const TextButton(onPressed: openAppSettings, child: Text('Open Settings')),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _pick(context),
+                icon: const Icon(Icons.bluetooth_searching_rounded),
+                label: const Text('Connect sensor'),
+              ),
+            ),
+            if (c.isRecording) ...[
+              const SizedBox(height: 8),
+              const Text('Recording with the phone\'s motion until a sensor connects.', style: AppText.dim),
+            ],
+          ],
+        ),
+      );
+    }
+    final live = c.sensorLive;
+    final peak = c.sensorPeakG;
+    final lost = link.decoder.lostPct;
+    final detail = switch (link.state) {
+      SensorState.live when live => [
+        '${c.sensorRateHz.round()} Hz',
+        if (link.decoder.packets > 0) '${lost.toStringAsFixed(lost < 1 ? 1 : 0)}% lost',
+        'on ${prettySlug(c.placement).toLowerCase()}',
+      ].join(' · '),
+      SensorState.lost => 'Out of range. Bring the phone closer: it reconnects by itself.',
+      _ => 'Connecting… Make sure the sensor is on (blue blinks).',
+    };
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionLabel(
+            'Leg sensor',
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(status, style: AppText.dim, overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(live && peak != null ? peak.toStringAsFixed(1) : '—', style: AppText.big),
+              const SizedBox(width: 6),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Text('g PEAK', style: AppText.unit),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    'motion ${c.motionMagnitude.toStringAsFixed(1)}',
+                    style: AppText.dim,
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Sparkline(values: c.motionHistory.values, color: AppColors.accent, height: 44, minSpan: 3),
+          const SizedBox(height: 10),
+          Text(
+            detail,
+            style: link.state == SensorState.lost ? AppText.dim.copyWith(color: AppColors.danger) : AppText.dim,
+          ),
+          if (lost >= 5 && live) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Many packets lost: keep the phone within a few metres, on the same side of the body.',
+              style: AppText.dim.copyWith(color: AppColors.warning),
+            ),
+          ],
+          if (!c.isRecording) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(onPressed: () => _pick(context), child: const Text('Change')),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(onPressed: c.disconnectSensor, child: const Text('Forget')),
+                ),
+              ],
             ),
           ],
         ],
@@ -699,6 +886,29 @@ class _RecordingCard extends StatelessWidget {
     final c = controller;
     final r = c.recorder!;
     final st = c.stats;
+    final coach = c.coach;
+    final strikes = coach?.strikes;
+    final actions = coach?.actions;
+    final hasHr = st.hrAvg != null || c.hr.state == HrConnection.connected;
+    final tiles = <Widget>[
+      if (actions != null)
+        StatTile(
+          label: actions.cfg.labelPlural[0].toUpperCase() + actions.cfg.labelPlural.substring(1),
+          value: '${actions.actions.length}',
+          color: AppColors.accent,
+        ),
+      if (strikes != null) ...[
+        StatTile(label: 'Hardest hit', value: strikes.hardestG?.toStringAsFixed(1) ?? '—', unit: 'g'),
+        StatTile(label: 'Footstrikes', value: '${strikes.strikes}'),
+        StatTile(label: 'Impact load', value: strikes.impactLoad.round().toString(), unit: 'g'),
+      ],
+      StatTile(label: 'Load', value: st.load.toStringAsFixed(1), color: AppColors.load),
+      StatTile(label: 'Efforts', value: '${coach?.efforts.length ?? 0}'),
+      if (hasHr) ...[
+        StatTile(label: 'Avg HR', value: st.hrAvg?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
+        StatTile(label: 'Max HR', value: st.hrMax?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
+      ],
+    ];
     final compact = OutlinedButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 10),
       textStyle: Theme.of(context).textTheme.labelLarge!.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
@@ -725,39 +935,16 @@ class _RecordingCard extends StatelessWidget {
           const SizedBox(height: 12),
           Center(child: Text(_clock(r.elapsed), style: AppText.hero.copyWith(fontSize: 72))),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: StatTile(
-                  label: 'Avg HR',
-                  value: st.hrAvg?.round().toString() ?? '—',
-                  unit: 'bpm',
-                  color: AppColors.heart,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: StatTile(
-                  label: 'Max HR',
-                  value: st.hrMax?.round().toString() ?? '—',
-                  unit: 'bpm',
-                  color: AppColors.heart,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: StatTile(label: 'Load', value: st.load.toStringAsFixed(1), color: AppColors.load),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: StatTile(label: 'Events', value: '${(r.events.length - 1).clamp(0, 9999)}'),
-              ),
-            ],
-          ),
+          for (var i = 0; i < tiles.length; i += 2) ...[
+            if (i > 0) const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: tiles[i]),
+                const SizedBox(width: 10),
+                Expanded(child: i + 1 < tiles.length ? tiles[i + 1] : const SizedBox()),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           Row(
             children: [

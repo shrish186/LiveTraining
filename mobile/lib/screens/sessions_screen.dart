@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
+import '../services/session_share.dart';
 import '../services/session_store.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
@@ -80,6 +81,41 @@ class _SessionTile extends StatelessWidget {
     ),
   );
 
+  /// Long-press menu: share the files, or delete the session from the phone.
+  Future<void> _actions(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.ios_share_rounded, color: AppColors.accent),
+              title: const Text('Share files', style: AppText.body),
+              subtitle: const Text('CSV + JSON: AirDrop, Files, email', style: AppText.dim),
+              onTap: () => Navigator.pop(context, 'share'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+              title: const Text('Delete from this phone', style: AppText.body),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    if (choice == 'share') {
+      await shareSession(session, origin: origin);
+    } else if (choice == 'delete') {
+      await _confirmDelete(context);
+    }
+  }
+
   Future<void> _confirmDelete(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -142,7 +178,7 @@ class _SessionTile extends StatelessWidget {
 
     return GestureDetector(
       // Long-press a finished session to delete it from the phone.
-      onLongPress: recordingThis ? null : () => _confirmDelete(context),
+      onLongPress: recordingThis ? null : () => _actions(context),
       child: AppCard(
         padding: const EdgeInsets.all(16),
         // Tap a finished session for its report (the Failed pill has its own tap for upload errors).

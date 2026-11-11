@@ -22,6 +22,19 @@ class SettingsStore {
   String get placement => _prefs.getString('placement') ?? 'phone_armband';
   set placement(String v) => _prefs.setString('placement', v);
 
+  /// The leg sensor this phone reconnects to on start (single-athlete mode on the Live tab).
+  String? get sensorId => _prefs.getString('sensor_id');
+  String? get sensorName => _prefs.getString('sensor_name');
+  void rememberSensor(String? id, String? name) {
+    if (id == null) {
+      _prefs.remove('sensor_id');
+      _prefs.remove('sensor_name');
+    } else {
+      _prefs.setString('sensor_id', id);
+      _prefs.setString('sensor_name', name ?? 'Sensor');
+    }
+  }
+
   /// Player names for squad sessions (one phone, several sensors).
   List<String> get squadPlayers => _prefs.getStringList('squad_players') ?? const [];
   set squadPlayers(List<String> v) => _prefs.setStringList('squad_players', v);

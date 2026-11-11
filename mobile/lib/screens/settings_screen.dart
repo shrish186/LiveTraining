@@ -100,7 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SectionLabel('Connection'),
+                  SectionLabel(whoopEnabled ? 'Connection' : 'Upload server (optional)'),
                   const SizedBox(height: 12),
                   _StatusLine(color: dot, text: status),
                   const SizedBox(height: 18),
@@ -120,19 +120,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       c.refreshRecovery();
                     },
                   ),
-                  const SizedBox(height: 14),
-                  const _FieldLabel('Athlete ID'),
-                  TextField(
-                    controller: _athlete,
-                    keyboardType: TextInputType.number,
-                    style: AppText.body,
-                    decoration: const InputDecoration(hintText: '1'),
-                    onChanged: (_) => _saveFields(),
-                    onTapOutside: (_) {
-                      FocusScope.of(context).unfocus();
-                      c.refreshRecovery();
-                    },
-                  ),
+                  if (whoopEnabled) ...[
+                    const SizedBox(height: 14),
+                    const _FieldLabel('Athlete ID'),
+                    TextField(
+                      controller: _athlete,
+                      keyboardType: TextInputType.number,
+                      style: AppText.body,
+                      decoration: const InputDecoration(hintText: '1'),
+                      onChanged: (_) => _saveFields(),
+                      onTapOutside: (_) {
+                        FocusScope.of(context).unfocus();
+                        c.refreshRecovery();
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
@@ -154,12 +156,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ],
                   const SizedBox(height: 4),
-                  const _Help(
-                    title: 'How to connect',
-                    body:
-                        'On your Mac, run backend/run_dev.sh and type the "Backend URL for the app" it prints. '
-                        'The iPhone and the Mac must be on the same network (your iPhone hotspot works). '
-                        'Your Athlete ID is listed on the status page at http://localhost:8000.',
+                  _Help(
+                    title: whoopEnabled ? 'How to connect' : 'Do I need this?',
+                    body: !whoopEnabled
+                        ? 'No. Sessions stay on the phone, and Share on a session report sends its files anywhere '
+                              '(AirDrop, Files, email). A server is only for uploading many sessions: on your Mac run '
+                              'backend/run_dev.sh and type the "Backend URL for the app" it prints.'
+                        : 'On your Mac, run backend/run_dev.sh and type the "Backend URL for the app" it prints. '
+                              'The iPhone and the Mac must be on the same network (your iPhone hotspot works). '
+                              'Your Athlete ID is listed on the status page at http://localhost:8000.',
                   ),
                 ],
               ),
@@ -167,36 +172,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
 
             // ---- WHOOP -----------------------------------------------------
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SectionLabel('WHOOP'),
-                  const SizedBox(height: 12),
-                  _StatusLine(
-                    color: whoopOk ? AppColors.good : AppColors.textFaint,
-                    text: whoopOk ? 'Connected · recovery synced' : 'Not connected yet',
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _connectWhoop,
-                      icon: const Icon(Icons.link_rounded),
-                      label: FittedBox(child: Text(whoopOk ? 'Reconnect WHOOP' : 'Connect WHOOP', maxLines: 1)),
+            if (whoopEnabled)
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SectionLabel('WHOOP'),
+                    const SizedBox(height: 12),
+                    _StatusLine(
+                      color: whoopOk ? AppColors.good : AppColors.textFaint,
+                      text: whoopOk ? 'Connected · recovery synced' : 'Not connected yet',
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  const _Help(
-                    title: 'Doesn\'t finish on the phone?',
-                    body:
-                        'WHOOP sends you back to localhost, which only works on the Mac. Open '
-                        'http://localhost:8000 on the Mac and click Connect WHOOP there instead.',
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _connectWhoop,
+                        icon: const Icon(Icons.link_rounded),
+                        label: FittedBox(child: Text(whoopOk ? 'Reconnect WHOOP' : 'Connect WHOOP', maxLines: 1)),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const _Help(
+                      title: 'Doesn\'t finish on the phone?',
+                      body:
+                          'WHOOP sends you back to localhost, which only works on the Mac. Open '
+                          'http://localhost:8000 on the Mac and click Connect WHOOP there instead.',
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+            if (whoopEnabled) const SizedBox(height: 12),
 
             // ---- Defaults ----------------------------------------------------
             AppCard(
@@ -307,7 +313,9 @@ class _Help extends StatelessWidget {
           children: [
             const Icon(Icons.help_outline_rounded, size: 16, color: AppColors.textFaint),
             const SizedBox(width: 8),
-            Expanded(child: Text(title, style: AppText.dim, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(
+              child: Text(title, style: AppText.dim, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
         children: [Text(body, style: AppText.dim)],

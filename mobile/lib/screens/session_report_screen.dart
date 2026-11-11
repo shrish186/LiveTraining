@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../coach/live_coach.dart';
 import '../report/session_report.dart';
 import '../report/signal_quality.dart';
+import '../services/session_share.dart';
 import '../services/session_store.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
@@ -42,7 +43,23 @@ class _SessionReportScreenState extends State<SessionReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(backgroundColor: AppColors.background, surfaceTintColor: Colors.transparent),
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          Builder(
+            builder: (context) => IconButton(
+              tooltip: 'Share session files',
+              icon: const Icon(Icons.ios_share_rounded),
+              onPressed: () {
+                final box = context.findRenderObject() as RenderBox?;
+                final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+                shareSession(widget.session, origin: origin);
+              },
+            ),
+          ),
+        ],
+      ),
       body: FutureBuilder<SessionReport>(
         future: _report,
         builder: (context, snapshot) {

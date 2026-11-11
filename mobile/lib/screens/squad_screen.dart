@@ -9,6 +9,7 @@ import '../sources/sensor_link.dart';
 import '../squad/squad_controller.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'sensor_picker.dart';
 
 String _clock(Duration d) =>
     '${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
@@ -48,52 +49,10 @@ class SquadScreen extends StatelessWidget {
       await [Permission.bluetoothScan, Permission.bluetoothConnect, Permission.locationWhenInUse].request();
     }
     if (!context.mounted) return;
-    final scan = (scanner ?? SensorScanner()).scan();
-    final picked = await showModalBottomSheet<FoundSensor>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: FutureBuilder<List<FoundSensor>>(
-          future: scan,
-          builder: (context, snapshot) {
-            final found = snapshot.data;
-            return ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-              children: [
-                Text('SENSOR FOR ${player.name.toUpperCase()}', style: AppText.label),
-                const SizedBox(height: 12),
-                if (snapshot.hasError)
-                  Text('Bluetooth scan failed: ${snapshot.error}', style: AppText.dim)
-                else if (found == null)
-                  const Row(
-                    children: [
-                      SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
-                      ),
-                      SizedBox(width: 12),
-                      Text('Looking for sensors nearby…', style: AppText.dim),
-                    ],
-                  )
-                else if (found.isEmpty)
-                  const Text(
-                    'No sensors found. Switch the sensor on (LED blinking) and hold it near the phone.',
-                    style: AppText.dim,
-                  )
-                else
-                  for (final s in found)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.sensors_rounded, color: AppColors.accent),
-                      title: Text(s.name, style: AppText.body),
-                      onTap: () => Navigator.pop(context, s),
-                    ),
-              ],
-            );
-          },
-        ),
-      ),
+    final picked = await showSensorPicker(
+      context,
+      title: 'Sensor for ${player.name}',
+      scan: () => (scanner ?? SensorScanner()).scan(),
     );
     if (picked != null) await squad.assign(player, SensorLink(picked));
   }

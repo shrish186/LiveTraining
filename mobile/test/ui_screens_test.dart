@@ -44,6 +44,21 @@ class _NoMotion implements MotionSource {
   Future<void> stop() async {}
 }
 
+/// One sensor packet (docs/sensor-protocol.md): 10 acc-only samples at 100 Hz, `mg` on the y axis.
+List<int> _sensorPacket(int seq, int mg) {
+  final b = ByteData(12 + 60)
+    ..setUint8(0, 1)
+    ..setUint16(2, seq, Endian.little)
+    ..setUint32(4, seq * 100, Endian.little)
+    ..setUint16(8, 10000, Endian.little)
+    ..setUint8(10, 10)
+    ..setUint8(11, 1);
+  for (var i = 0; i < 10; i++) {
+    b.setInt16(12 + i * 6 + 2, i == 5 ? mg : 1000, Endian.little);
+  }
+  return b.buffer.asUint8List();
+}
+
 final _previewDir = Platform.environment['PREVIEW_DIR'];
 final _fontDir = Platform.environment['PREVIEW_FONT_DIR'];
 
@@ -213,6 +228,77 @@ void main() {
     await tester.runAsync(() => c.recorder!.stop());
   });
 
+  testWidgets('home, leg sensor live', (tester) async {
+    final packets = StreamController<List<int>>();
+    SharedPreferences.setMockInitialValues({'sport': 'cricket', 'placement': 'phone_armband'});
+    final c = AppController(
+      await SettingsStore.load(),
+      motionSource: _NoMotion(),
+      hrSource: WhoopHrSource(),
+      sensorLinkFactory: (found) => SensorLink(found, packets: packets.stream),
+    );
+    await tester.runAsync(() async {
+      await c.connectSensor(const FoundSensor('A', 'LT-3F2A'));
+      for (var k = 0; k < 30; k++) {
+        packets.add(_sensorPacket(k, k % 10 == 0 ? 9000 : 1000));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    expect(c.placement, 'ankle', reason: 'a leg sensor moves the placement off the phone armband');
+    expect(c.sensorLive, isTrue);
+    expect(c.settings.sensorId, 'A');
+    await _pump(tester, c, 'home_sensor');
+    expect(find.text('LEG SENSOR'), findsOneWidget);
+    expect(find.text('LT-3F2A'), findsWidgets);
+    expect(find.text('Forget'), findsOneWidget);
+    await tester.runAsync(() async {
+      await c.disconnectSensor();
+      await packets.close();
+    });
+    expect(c.settings.sensorId, isNull);
+  });
+
+  testWidgets('home, recording from the leg sensor (cricket)', (tester) async {
+    final packets = StreamController<List<int>>();
+    SharedPreferences.setMockInitialValues({'sport': 'cricket', 'placement': 'ankle'});
+    final c = AppController(
+      await SettingsStore.load(),
+      motionSource: _NoMotion(),
+      hrSource: WhoopHrSource(),
+      sensorLinkFactory: (found) => SensorLink(found, packets: packets.stream),
+    );
+    final dir = Directory.systemTemp.createTempSync('ui_sensor');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    await tester.runAsync(() async {
+      await c.connectSensor(const FoundSensor('A', 'LT-3F2A'));
+      final r = SessionRecorder(
+        directory: dir,
+        sessionId: '00000000-0000-0000-0000-000000000002',
+        setup: const SessionSetup(sport: 'cricket', sessionType: 'training', placement: 'ankle'),
+        appVersion: 'test',
+        deviceModel: 'test',
+      );
+      await r.start();
+      c.recorder = r;
+      final profiles = SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync());
+      c.coach = LiveCoach(CoachConfig.fromProfile(profiles.forSport('cricket'), 'ankle'));
+      for (var k = 0; k < 30; k++) {
+        packets.add(_sensorPacket(k, k % 5 == 0 ? 6000 : 1000));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    c.stats.load = 9.2;
+    await _pump(tester, c, 'home_recording_sensor');
+    expect(find.text('DELIVERIES'), findsOneWidget);
+    expect(find.text('HARDEST HIT'), findsOneWidget);
+    expect(find.text('AVG HR'), findsNothing, reason: 'no heart-rate strap: no HR tiles');
+    await tester.runAsync(() async {
+      await c.recorder!.stop();
+      await c.disconnectSensor(forget: false);
+      await packets.close();
+    });
+  });
+
   testWidgets('session report', (tester) async {
     final csv = utf8.decode(gzip.decode(File('test/fixtures/parity_session.csv.gz').readAsBytesSync()));
     final report = SessionReport.build(const LineSplitter().convert(csv), {
@@ -375,6 +461,9 @@ void main() {
     await _pump(tester, await _controller(withData: true), 'sessions_week', tab: 1);
     expect(find.text('This week'.toUpperCase()), findsOneWidget);
     await tester.longPress(find.text('Soccer · training').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Share files'), findsOneWidget);
+    await tester.tap(find.text('Delete from this phone'));
     await tester.pumpAndSettle();
     expect(find.text('Delete session?'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
