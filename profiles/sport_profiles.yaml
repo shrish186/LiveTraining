@@ -51,6 +51,13 @@ profiles:
       quiet_std_g: 0.15
     drift:                           # form drift: the last N efforts vs the first N
       compare_efforts: 2
+    quality:                         # is a recording good enough to trust?
+      gap_ms: 50                     # a dropout is an interval longer than this
+      max_lost_pct: 1.0              # missing samples tolerated before it counts
+      clip_min_samples: 5            # this many samples stuck at the top value = the sensor hit its limit
+      still_std_g: 0.03              # "at rest" for the gravity and strap checks
+      gravity_tolerance_pct: 5       # |acc| at rest may differ from 1 g by this much
+      max_tilt_change_deg: 25        # sensor angle at rest, start vs end of session
     warmup:                          # live call "Warmed up, go"
       min_minutes: 5                 # never earlier than this into the session
       hr_above_rest_bpm: 40          # HR at least this far above WHOOP resting HR...

@@ -17,6 +17,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 from ltlib import core  # noqa: E402
+from ltlib import quality as ql  # noqa: E402
 from ltlib import steps as st  # noqa: E402
 from ltlib.profiles import BASE_PROFILE, effort_params, get_profile, load_profiles  # noqa: E402
 from ltlib.session_io import (  # noqa: E402
@@ -57,10 +58,14 @@ def analyze(csv_path: str | Path, metadata_path: str | Path | None = None, profi
     core.add_hr_recovery(efforts, hr["t_s"].to_numpy(), hr["value"].to_numpy(), fatigue_cfg["hr_recovery_window_s"])
     fatigue = core.assess_fatigue(efforts, fatigue_cfg["baseline_window_min"] * 60, fatigue_cfg["peak_drop_pct"])
     step_report = analyze_steps(profile, placement, acc, efforts)
-    return {"steps": step_report,"df": df, "meta": meta, "profile": profile, "placement": placement, "effort_cfg": effort_cfg,
+    duration_s = float(df["t_ms"].max() - df["t_ms"].min()) / 1000.0
+    quality = None if acc.empty else ql.stream_quality(
+        acc["t_s"].to_numpy(), acc["x"].to_numpy(), acc["y"].to_numpy(), acc["z"].to_numpy(), **profile["quality"])
+    return {"steps": step_report, "quality": quality,
+            "hr_coverage_pct": ql.hr_coverage_pct(hr["t_s"].to_numpy(), duration_s),"df": df, "meta": meta, "profile": profile, "placement": placement, "effort_cfg": effort_cfg,
             "motion_source": motion_source, "hr_source": hr_source,
             "mag": mag, "hr": hr, "events": event_rows(df), "efforts": efforts, "fatigue": fatigue,
-            "duration_s": float(df["t_ms"].max() - df["t_ms"].min()) / 1000.0, "load": core.motion_load(mag)}
+            "duration_s": duration_s, "load": core.motion_load(mag)}
 
 
 def analyze_steps(profile: dict, placement: str | None, acc, efforts: list[core.Effort]) -> dict | None:
@@ -119,6 +124,16 @@ def steps_text(s: dict) -> list[str]:
     return lines
 
 
+def quality_text(r: dict) -> list[str]:
+    q = r.get("quality")
+    if q is None:
+        return []
+    lines = ["", f"Data quality: {q.grade.upper()} ({q.score}/100)   motion {q.rate_hz:.0f} Hz, "
+                 f"{q.lost_pct:.1f}% lost, {q.gaps} dropouts   heart rate covers {r['hr_coverage_pct']:.0f}% of the session"]
+    lines += [f"  ! {issue}" for issue in q.issues]
+    return lines
+
+
 def summary_text(r: dict) -> str:
     meta, hr, f = r["meta"], r["hr"], r["fatigue"]
     window = r["profile"]["fatigue"]["hr_recovery_window_s"]
@@ -154,6 +169,7 @@ def summary_text(r: dict) -> str:
             lines.append("No fatigue signal: effort peaks and HR recovery held up.")
     if r.get("steps"):
         lines += steps_text(r["steps"])
+    lines += quality_text(r)
     return "\n".join(lines)
 
 
