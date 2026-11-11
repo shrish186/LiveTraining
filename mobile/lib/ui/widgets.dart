@@ -473,3 +473,50 @@ class _HoldToConfirmButtonState extends State<HoldToConfirmButton> with SingleTi
     );
   }
 }
+
+/// A big ring with a number inside, a caps label and one line saying what the number means.
+class LabeledRing extends StatelessWidget {
+  const LabeledRing({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.number,
+    required this.word,
+    this.unit,
+  });
+
+  final String label;
+  final double? value;
+  final Color color;
+  final String number;
+  final String? unit;
+  final String word;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        RingGauge(
+          value: value,
+          color: color,
+          size: 150,
+          thickness: 11,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(number, style: AppText.hero.copyWith(fontSize: 48)),
+              if (unit != null) Text(unit!, style: AppText.unit.copyWith(fontSize: 16)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(label, style: AppText.label),
+        const SizedBox(height: 4),
+        Text(word, style: AppText.dim, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ],
+    );
+  }
+}

@@ -124,15 +124,16 @@ class SessionReportView extends StatelessWidget {
         ? placement
         : '$sensor on ${placement.toLowerCase()}';
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
       children: [
         ScreenHeader(overline: overline, title: '${prettySlug(session.sport)} · ${session.sessionType}'),
         Text('${_mmss(r.durationS)} · $where', style: AppText.dim),
-        const SizedBox(height: 16),
-        _Tiles(report: r),
-        const SizedBox(height: 12),
+        const SizedBox(height: 28),
+        _Hero(report: r, verdict: advice.firstOrNull),
+        const SizedBox(height: 28),
         if (advice.isNotEmpty || onAskCoach != null) ...[
           AdviceCard(
+            title: 'What we saw',
             advice: advice,
             action: onAskCoach == null
                 ? null
@@ -151,51 +152,128 @@ class SessionReportView extends StatelessWidget {
         const SizedBox(height: 12),
         if (r.actions != null) ...[_ActionsCard(report: r), const SizedBox(height: 12)],
         if (r.actions == null || r.efforts.isNotEmpty) ...[_EffortsCard(report: r), const SizedBox(height: 12)],
+        _Details(report: r),
+        const SizedBox(height: 12),
         _QualityCard(report: r),
       ],
     );
   }
 }
 
-class _Tiles extends StatelessWidget {
-  const _Tiles({required this.report});
+/// Two rings and one sentence: what happened, and whether it held up.
+class _Hero extends StatelessWidget {
+  const _Hero({required this.report, required this.verdict});
+
+  final SessionReport report;
+  final Advice? verdict;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = report;
+    final drift = r.actionDriftPct;
+    final fatigue = r.fatigueEfforts;
+    final LabeledRing left, right;
+    if (r.actions != null) {
+      left = LabeledRing(
+        label: r.actionsLabel!.toUpperCase(),
+        value: r.actions!.isEmpty ? 0 : 1,
+        color: AppColors.accent,
+        number: '${r.actions!.length}',
+        word: r.hardestG == null ? 'this session' : 'hardest ${r.hardestG!.toStringAsFixed(1)} g',
+      );
+      right = LabeledRing(
+        label: 'LANDING HELD',
+        value: drift == null ? null : ((100 + drift) / 100).clamp(0.0, 1.0),
+        color: drift == null ? AppColors.textFaint : (drift <= -10 ? AppColors.warning : AppColors.good),
+        number: drift == null ? '—' : '${(100 + drift).round()}',
+        unit: drift == null ? null : '%',
+        word: drift == null ? 'needs ${2 * r.actionsCompare}+' : 'last vs first ${r.actionsCompare}',
+      );
+    } else {
+      left = LabeledRing(
+        label: 'LOAD',
+        value: r.load > 0 ? 1 : 0,
+        color: AppColors.load,
+        number: r.load.toStringAsFixed(r.load < 10 ? 1 : 0),
+        word: '${(r.durationS / 60).round()} min',
+      );
+      right = LabeledRing(
+        label: 'EFFORTS',
+        value: r.efforts.isEmpty ? 0 : 1 - fatigue / r.efforts.length,
+        color: fatigue > 0 ? AppColors.warning : AppColors.good,
+        number: '${r.efforts.length}',
+        word: fatigue > 0 ? '$fatigue with fatigue' : 'all held up',
+      );
+    }
+    final v = verdict;
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: 16),
+            Expanded(child: right),
+          ],
+        ),
+        if (v != null) ...[
+          const SizedBox(height: 18),
+          Text(
+            v.title,
+            textAlign: TextAlign.center,
+            style: AppText.body.copyWith(fontSize: 17, fontWeight: FontWeight.w600, color: AdviceCard.colorOf(v.level)),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Every number from the session as a quiet two-column list.
+class _Details extends StatelessWidget {
+  const _Details({required this.report});
 
   final SessionReport report;
 
   @override
   Widget build(BuildContext context) {
     final r = report;
-    final tiles = [
-      if (r.actions != null)
-        StatTile(label: _capital(r.actionsLabel!), value: '${r.actions!.length}', color: AppColors.accent),
+    final rows = <(String, String)>[
+      ('Duration', _mmss(r.durationS)),
+      ('Load', r.load.toStringAsFixed(1)),
+      if (r.actions != null) (_capital(r.actionsLabel!), '${r.actions!.length}'),
       if (r.actionDriftPct != null)
-        StatTile(
-          label: 'Landing, last vs first',
-          value: '${r.actionDriftPct! >= 0 ? '+' : ''}${r.actionDriftPct!.round()}',
-          unit: '%',
-          color: r.actionDriftPct! <= -10 ? AppColors.warning : null,
-        ),
-      if (r.actions == null || r.efforts.isNotEmpty)
-        StatTile(label: 'Efforts', value: '${r.efforts.length}', color: AppColors.accent),
-      StatTile(label: 'Load', value: r.load.toStringAsFixed(1), color: AppColors.load),
-      StatTile(label: 'Avg HR', value: r.hrAvg?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
-      StatTile(label: 'Max HR', value: r.hrMax?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
-      if (r.impactLoad != null) StatTile(label: 'Impact load', value: r.impactLoad!.round().toString(), unit: 'g'),
-      if (r.strikes != null) StatTile(label: 'Footstrikes', value: '${r.strikes}'),
+        ('Landing, last vs first', '${r.actionDriftPct! >= 0 ? '+' : ''}${r.actionDriftPct!.round()}%'),
+      if (r.actions == null || r.efforts.isNotEmpty) ('Efforts', '${r.efforts.length}'),
+      if (r.strikes != null) ('Footstrikes', '${r.strikes}'),
+      if (r.impactLoad != null) ('Impact load', '${r.impactLoad!.round()} g'),
+      if (r.hardestG != null) ('Hardest hit', '${r.hardestG!.toStringAsFixed(1)} g'),
+      if (r.hrAvg != null) ('Heart rate, average', '${r.hrAvg!.round()} bpm'),
+      if (r.hrMax != null) ('Heart rate, max', '${r.hrMax!.round()} bpm'),
     ];
-    return Column(
-      children: [
-        for (var i = 0; i < tiles.length; i += 2) ...[
-          if (i > 0) const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: tiles[i]),
-              const SizedBox(width: 10),
-              Expanded(child: i + 1 < tiles.length ? tiles[i + 1] : const SizedBox()),
-            ],
-          ),
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel('Details'),
+          const SizedBox(height: 6),
+          for (final (label, value) in rows)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: Row(
+                children: [
+                  Expanded(child: Text(label, style: AppText.dim.copyWith(fontSize: 14))),
+                  Text(
+                    value,
+                    style: AppText.body.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
-      ],
+      ),
     );
   }
 }

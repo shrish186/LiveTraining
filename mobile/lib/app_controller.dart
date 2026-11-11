@@ -519,6 +519,28 @@ class AppController extends ChangeNotifier {
     return [?start, ...adviceForWeek(trends)].take(3).toList();
   }
 
+  /// Readiness from the sensor, as % of the athlete's usual start: the latest session's first actions
+  /// (e.g. first over) against the median of the sessions before it. 100 = a normal day. Null without
+  /// enough history or for a sport without actions.
+  double? get readinessPct {
+    final entries = sessions.map((s) => s.dayEntry).whereType<DayEntry>().toList();
+    final mine = entries.where((e) => e.sport == sport && e.summary?.firstActionG != null).toList()
+      ..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    if (mine.isEmpty) return null;
+    final profiles = _profiles;
+    final cfg = profiles == null ? null : CoachConfig.fromProfile(profiles.forSport(sport), placement).actions;
+    final usual = actionBaseline(mine, sport, minSessions: cfg?.baselineSessions ?? 3, before: mine.first.startedAt);
+    return usual == null || usual <= 0 ? null : mine.first.summary!.firstActionG! / usual * 100;
+  }
+
+  /// Today's load as % of the athlete's usual training day (4 weeks). Null until there are 2 weeks of
+  /// history: before that the "usual day" is mostly empty days and the % would be meaningless.
+  double? get todayLoadPct {
+    final t = trends;
+    final usualDay = t.averageWeekLoad / 7;
+    return t.historyDays < 14 || usualDay <= 0 ? null : today.load / usualDay * 100;
+  }
+
   /// Why the AI coach can't be used yet, or null when it can be tried.
   String? get coachNotSetUp => settings.backendUrl.isEmpty
       ? 'Add your server address in Settings › Upload server. The server needs a Claude API key '

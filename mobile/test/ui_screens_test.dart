@@ -249,9 +249,12 @@ void main() {
     expect(c.sensorLive, isTrue);
     expect(c.settings.sensorId, 'A');
     await _pump(tester, c, 'home_sensor');
-    expect(find.text('LEG SENSOR'), findsOneWidget);
-    expect(find.text('LT-3F2A'), findsWidgets);
-    expect(find.text('Forget'), findsOneWidget);
+    expect(find.text('LT-3F2A'), findsOneWidget); // the sensor chip in the header
+    expect(find.text('READINESS'), findsOneWidget);
+    expect(find.text('Connect your sensor'), findsNothing);
+    await tester.tap(find.text('LT-3F2A'));
+    await tester.pumpAndSettle();
+    expect(find.text('Forget'), findsOneWidget); // the sensor sheet
     await tester.runAsync(() async {
       await c.disconnectSensor();
       await packets.close();
@@ -291,8 +294,8 @@ void main() {
     c.stats.load = 9.2;
     await _pump(tester, c, 'home_recording_sensor');
     expect(find.text('DELIVERIES'), findsOneWidget);
-    expect(find.text('HARDEST HIT'), findsOneWidget);
-    expect(find.text('AVG HR'), findsNothing, reason: 'no heart-rate strap: no HR tiles');
+    expect(find.text('Hardest hit'), findsOneWidget);
+    expect(find.text('Heart rate'), findsNothing, reason: 'no heart-rate strap: no HR figure');
     await tester.runAsync(() async {
       await c.recorder!.stop();
       await c.disconnectSensor(forget: false);
@@ -371,7 +374,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
     expect(find.text('DELIVERIES'), findsWidgets);
-    expect(find.text('Fatigue building late in the spell'), findsOneWidget); // the advice card
+    expect(find.text('Fatigue building late in the spell'), findsNWidgets(2)); // the verdict and the advice
     await tester.scrollUntilVisible(find.textContaining('softer than the first 6: fatigue'), 300); // the deliveries card
     final dir = _previewDir;
     if (dir != null) {
