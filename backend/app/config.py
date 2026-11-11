@@ -41,9 +41,15 @@ class Settings:
         return [name for name, value in (("WHOOP_CLIENT_ID", self.whoop_client_id),
                                          ("WHOOP_CLIENT_SECRET", self.whoop_client_secret)) if not value.strip()]
 
+    @property
+    def whoop_enabled(self) -> bool:
+        """WHOOP is optional: with both settings empty the server runs without it."""
+        return len(self.missing_credentials()) < 2
+
     def require_whoop_credentials(self) -> None:
+        """Half-configured WHOOP (one of the two set) is a mistake: fail fast. Neither set = WHOOP off."""
         missing = self.missing_credentials()
-        if missing:
+        if len(missing) == 1:
             raise MissingWhoopCredentials(
                 f"{' and '.join(missing)} not set. Copy backend/.env.example to backend/.env and fill in the "
                 "Client ID and Client Secret from https://developer-dashboard.whoop.com"

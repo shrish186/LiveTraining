@@ -7,20 +7,25 @@ set -euo pipefail
 cd "$(dirname "$0")"
 PORT="${PORT:-8000}"
 
-# 1. backend/.env with WHOOP credentials
+# 1. backend/.env (WHOOP and the AI coach are both optional)
 if [[ ! -f .env ]]; then
   cp .env.example .env
-  echo "Created backend/.env from .env.example."
-  echo "Fill in WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET (https://developer-dashboard.whoop.com), then run this again."
-  exit 1
+  echo "Created backend/.env from .env.example (WHOOP and the AI coach are optional: fill them in to turn them on)."
 fi
 missing=()
 for var in WHOOP_CLIENT_ID WHOOP_CLIENT_SECRET; do
   grep -Eq "^${var}=[[:space:]]*[^[:space:]#]+" .env || missing+=("${var}")
 done
-if (( ${#missing[@]} )); then
-  echo "ERROR: ${missing[*]} empty in backend/.env. Fill in the value(s) from https://developer-dashboard.whoop.com" >&2
+if (( ${#missing[@]} == 1 )); then
+  echo "ERROR: ${missing[*]} empty in backend/.env: fill in both WHOOP values or neither." >&2
   exit 1
+elif (( ${#missing[@]} == 2 )); then
+  echo "WHOOP: off (no credentials in backend/.env)."
+fi
+if grep -Eq "^ANTHROPIC_API_KEY=[[:space:]]*[^[:space:]#]+" .env; then
+  echo "AI coach: on."
+else
+  echo "AI coach: off (add ANTHROPIC_API_KEY to backend/.env to turn it on)."
 fi
 
 # 2. Python 3.11+ (macOS's built-in python3 is 3.9, which is too old)

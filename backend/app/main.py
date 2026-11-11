@@ -1,4 +1,5 @@
 import html
+import os
 import json
 import shutil
 import socket
@@ -7,12 +8,14 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+import anthropic
 import httpx
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from . import coach_ai
 from .config import Settings
 from .db import make_engine, make_sessionmaker
 from .models import Athlete, OAuthState, TrainingSession, WhoopToken, utcnow
@@ -102,10 +105,12 @@ def _page(title: str, body: str, status: int = 200) -> HTMLResponse:
     )
 
 
-def create_app(settings: Settings | None = None, transport: httpx.BaseTransport | None = None) -> FastAPI:
-    """App factory. Tests pass their own Settings and an httpx.MockTransport.
+def create_app(settings: Settings | None = None, transport: httpx.BaseTransport | None = None,
+               coach_client: coach_ai.MessagesClient | None = None) -> FastAPI:
+    """App factory. Tests pass their own Settings, an httpx.MockTransport and a fake coach client.
 
-    Fails fast (MissingWhoopCredentials) if the WHOOP client ID or secret is missing.
+    WHOOP is optional (both credentials empty = off); fails fast (MissingWhoopCredentials) if only one is set.
+    The AI coach uses `coach_client`, else the Claude API when ANTHROPIC_API_KEY is set, else it is off.
     """
     settings = settings or Settings.from_env()
     settings.require_whoop_credentials()
@@ -113,6 +118,9 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
     sessions_dir.mkdir(parents=True, exist_ok=True)
     db_factory = make_sessionmaker(make_engine(settings.database_url))
     whoop = WhoopClient(settings, httpx.Client(transport=transport, timeout=20.0), db_factory)
+
+    if coach_client is None and os.getenv("ANTHROPIC_API_KEY", "").strip():
+        coach_client = anthropic.Anthropic().beta
 
     app = FastAPI(title="Live Training Intelligence")
     app.state.db_factory = db_factory
@@ -127,6 +135,10 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
         if athlete is None:
             raise HTTPException(404, "athlete not found")
         return athlete
+
+    def require_whoop() -> None:
+        if not settings.whoop_enabled:
+            raise HTTPException(503, "WHOOP is not set up on this server (WHOOP_CLIENT_ID / WHOOP_CLIENT_SECRET empty)")
 
     @app.exception_handler(WhoopError)
     def whoop_error(_: Request, exc: WhoopError):
@@ -166,7 +178,7 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
 
     # ---- WHOOP OAuth -------------------------------------------------------
 
-    @app.get("/auth/whoop/login")
+    @app.get("/auth/whoop/login", dependencies=[Depends(require_whoop)])
     def whoop_login(db: Session = Depends(get_db)):
         db.execute(delete(OAuthState).where(OAuthState.created_at < utcnow() - STATE_TTL))
         state = new_state()
@@ -174,7 +186,7 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
         db.commit()
         return RedirectResponse(whoop.authorize_url(state), status_code=302)
 
-    @app.get("/auth/whoop/callback")
+    @app.get("/auth/whoop/callback", dependencies=[Depends(require_whoop)])
     def whoop_callback(
         code: str | None = None,
         state: str | None = None,
@@ -222,7 +234,7 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
             for a in db.scalars(select(Athlete).order_by(Athlete.id))
         ]
 
-    @app.get("/athletes/{athlete_id}/whoop/recovery/latest")
+    @app.get("/athletes/{athlete_id}/whoop/recovery/latest", dependencies=[Depends(require_whoop)])
     def latest_recovery(athlete_id: int, db: Session = Depends(get_db)):
         require_athlete(athlete_id, db)
         records = whoop.get_collection(athlete_id, "/v2/recovery", limit=1)
@@ -230,14 +242,14 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
             raise HTTPException(404, "no recovery yet")
         return recovery_view(records[0])
 
-    @app.get("/athletes/{athlete_id}/whoop/recovery")
+    @app.get("/athletes/{athlete_id}/whoop/recovery", dependencies=[Depends(require_whoop)])
     def recovery_history(athlete_id: int, days: int = Query(14, ge=1, le=MAX_RECOVERY_DAYS),
                          db: Session = Depends(get_db)):
         require_athlete(athlete_id, db)
         records = whoop.get_collection(athlete_id, "/v2/recovery", start=utcnow() - timedelta(days=days))
         return [recovery_view(r) for r in records]
 
-    @app.get("/athletes/{athlete_id}/whoop/cycle/latest")
+    @app.get("/athletes/{athlete_id}/whoop/cycle/latest", dependencies=[Depends(require_whoop)])
     def latest_cycle(athlete_id: int, db: Session = Depends(get_db)):
         """Today's WHOOP cycle: day strain so far (0-21), from WHOOP's official API."""
         require_athlete(athlete_id, db)
@@ -246,13 +258,35 @@ def create_app(settings: Settings | None = None, transport: httpx.BaseTransport 
             raise HTTPException(404, "no cycle yet")
         return cycle_view(records[0])
 
-    @app.get("/athletes/{athlete_id}/whoop/sleep/latest")
+    @app.get("/athletes/{athlete_id}/whoop/sleep/latest", dependencies=[Depends(require_whoop)])
     def latest_sleep(athlete_id: int, db: Session = Depends(get_db)):
         require_athlete(athlete_id, db)
         records = whoop.get_collection(athlete_id, "/v2/activity/sleep", limit=1)
         if not records:
             raise HTTPException(404, "no sleep yet")
         return records[0]
+
+    # ---- AI coach ----------------------------------------------------------------
+
+    @app.get("/coach")
+    def coach_status():
+        return {"available": coach_client is not None, "model": coach_ai.MODEL}
+
+    @app.post("/coach/ask")
+    def coach_ask(body: dict[str, Any]):
+        """{question, context, history?} -> {answer, model}. context is the app's summary of the athlete's data."""
+        question, context, history = body.get("question"), body.get("context") or {}, body.get("history") or []
+        if not isinstance(question, str) or not isinstance(context, dict) or not isinstance(history, list):
+            raise HTTPException(422, "expected {question: string, context: object, history: list}")
+        try:
+            result = coach_ai.ask(coach_client, question, context, history)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
+        except coach_ai.CoachUnavailable as e:
+            raise HTTPException(503, str(e)) from e
+        except coach_ai.CoachError as e:
+            raise HTTPException(502, str(e)) from e
+        return {"answer": result.answer, "model": result.model}
 
     # ---- sessions --------------------------------------------------------------
 
