@@ -59,10 +59,8 @@ def test_from_a_raw_signal():
     assert len(actions) == 1 and abs(actions[0].t_s - 15.2) < 0.02 and actions[0].peak_g > 13.5
 
 
-def test_cricket_session_end_to_end(tmp_path):
+def _cricket_session(tmp_path, marks=()):
     import json
-
-    import analyze_session
 
     fs, g0 = 100, 9.81
     t = np.arange(0, 400, 1 / fs)
@@ -78,15 +76,42 @@ def test_cricket_session_end_to_end(tmp_path):
             bump(s0 + i * 0.65, 5.0)
         bump(s0 + 8 * 0.65, 15.0 if k < 3 else 12.0)   # softer front-foot landings late in the spell
         bump(s0 + 8 * 0.65 + 0.6, 6.0)
-    rows = ["t_ms,source,kind,x,y,z,value"] + [f"{int(round(ti * 1000))},xiao,acc,0,{gi * g0:.4f},0," for ti, gi in zip(t, g)]
-    (tmp_path / "s.csv").write_text("\n".join(rows) + "\n")
+    rows = [(int(round(ti * 1000)), f"xiao,acc,0,{gi * g0:.4f},0,") for ti, gi in zip(t, g)]
+    rows += [(int(m * 1000), "phone,event,,,,mark") for m in marks]
+    rows.sort(key=lambda r: r[0])
+    lines = ["t_ms,source,kind,x,y,z,value"] + [f"{ms},{rest}" for ms, rest in rows]
+    (tmp_path / "s.csv").write_text("\n".join(lines) + "\n")
     meta = {"format_version": 1, "session_id": "c", "sport": "cricket", "session_type": "training",
             "started_at": "2026-11-11T10:00:00Z", "placement": "ankle",
             "sources": [{"id": "xiao", "kinds": ["acc"], "sample_rate_hz": fs}]}
     (tmp_path / "s.json").write_text(json.dumps(meta))
+    return [s0 + 8 * 0.65 for s0 in starts]
+
+
+def test_cricket_session_end_to_end(tmp_path):
+    import analyze_session
+
+    _cricket_session(tmp_path)
     r = analyze_session.analyze(tmp_path / "s.csv", tmp_path / "s.json")
     acts = r["steps"]["actions"]
     assert acts["label_plural"] == "deliveries" and len(acts["actions"]) == 7
     assert acts["drift"] is None                     # 7 < 2 x 6: not enough for a drift
     text = analyze_session.summary_text(r)
     assert "Deliveries: 7" in text
+
+
+def test_validate_deliveries_against_marks(tmp_path):
+    import analyze_session
+    import validate_session
+
+    deliveries = _cricket_session(tmp_path, marks=[])
+    # The coach marked 6 of the 7 (a tap 2 s after each), plus one tap with no delivery.
+    marks = [d + 2 for d in deliveries[:6]] + [380.0]
+    _cricket_session(tmp_path, marks=marks)
+    r = analyze_session.analyze(tmp_path / "s.csv", tmp_path / "s.json")
+    text = validate_session.report(r, "mark", 5, 15)
+    assert "Deliveries vs marks" in text
+    assert text.count("  ok      mark") >= 6
+    assert "MISSED  mark 06:20" in text
+    assert "EXTRA   delivery" in text
+    assert "precision   86%   recall   86%" in text

@@ -4,7 +4,8 @@ Usage: python validate_session.py <csv> [--metadata <json>] [--profile <name>] [
                                   [--before 5] [--after 15]
 
 Protocol: during the session tap Mark in the app right after each real hard effort (sprint, jump
-set, interval). Tap nothing else with that label. This script then reports:
+set, interval). Tap nothing else with that label. In a profile with actions (cricket: deliveries),
+tap Mark once per delivery instead, as the ball is bowled. This script then reports:
   - which marked efforts were detected, which were missed, and which detections had no mark
   - precision (detections that were real) and recall (real efforts that were detected)
   - the same at other thresholds, and a suggested threshold for this sport and placement
@@ -21,7 +22,8 @@ from pathlib import Path
 import numpy as np
 
 from analyze_session import analyze, mmss
-from ltlib.validate import Score, suggest, sweep
+from ltlib import actions as ac
+from ltlib.validate import ActionScore, Score, match_actions, suggest, sweep
 
 
 def pct(v: float | None) -> str:
@@ -77,7 +79,41 @@ def report(r: dict, label: str, before_s: float, after_s: float) -> str:
                      f"Set it in {where} once a few sessions agree.")
     if len(marks) < 6:
         lines.append(f"Only {len(marks)} marks: record more efforts before trusting a suggestion.")
+    steps = r.get("steps") or {}
+    if steps.get("actions"):
+        lines += actions_report(r, marks)
     return "\n".join(lines)
+
+
+def actions_report(r: dict, marks: list[float]) -> list[str]:
+    """The profile's actions (e.g. deliveries) against the same marks, and a `min_peak_g` sweep."""
+    a, steps = r["profile"]["actions"], r["steps"]
+    plural = a["label_plural"]
+
+    def detect(min_peak: float) -> list[float]:
+        found = ac.detect_actions(steps["strikes"], min_peak, a["min_ratio"], a["runup_window_s"],
+                                  a["min_runup_strikes"], a["min_gap_s"], r["profile"]["steps"]["max_stride_s"])
+        return [x.t_s for x in found]
+
+    current = float(a["min_peak_g"])
+    grid = sorted(set(np.round(np.arange(4.0, 30.01, 0.5), 2)) | {current})
+    scores: list[ActionScore] = [match_actions(marks, detect(g), g) for g in grid]
+    now = next(s for s in scores if s.min_peak_g == current)
+    lines = ["", f"{plural.capitalize()} vs marks (min_peak_g {current} g, min_ratio {a['min_ratio']}):"]
+    for m, t in now.matched:
+        lines.append(f"  ok      mark {mmss(m)}  {a['label']} {mmss(t)}")
+    for m in now.missed_marks:
+        lines.append(f"  MISSED  mark {mmss(m)}")
+    for t in now.extra_actions:
+        lines.append(f"  EXTRA   {a['label']} {mmss(t)}, no mark")
+    lines.append(f"  precision {pct(now.precision)}   recall {pct(now.recall)}   F1 {now.f1:.2f}")
+    best = max(scores, key=lambda s: (round(s.f1, 9), -abs(s.min_peak_g - current)))
+    if best.f1 > now.f1 + 1e-9:
+        lines.append(f"  min_peak_g {best.min_peak_g} would score F1 {best.f1:.2f}: set it in profiles/sport_profiles.yaml "
+                     f"› {r['profile']['name']} › actions once a few sessions agree.")
+    else:
+        lines.append("  The current min_peak_g is as good as any on this session.")
+    return lines
 
 
 def main() -> None:

@@ -77,3 +77,45 @@ def suggest(scores: list[Score], current: float) -> Score | None:
     longest = max(len(r) for r in runs)
     candidates = [scores[r[len(r) // 2]] for r in runs if len(r) == longest]
     return min(candidates, key=lambda s: abs(s.threshold - current))
+
+
+@dataclass
+class ActionScore:
+    """Detected actions (e.g. deliveries) against marks, at one `min_peak_g`."""
+    min_peak_g: float
+    matched: list[tuple[float, float]]   # (mark time, action time)
+    missed_marks: list[float]
+    extra_actions: list[float]
+
+    def _ratio(self, other: int) -> float | None:
+        n = len(self.matched) + other
+        return len(self.matched) / n if n else None
+
+    @property
+    def precision(self) -> float | None:
+        return self._ratio(len(self.extra_actions))
+
+    @property
+    def recall(self) -> float | None:
+        return self._ratio(len(self.missed_marks))
+
+    @property
+    def f1(self) -> float:
+        p, r = self.precision, self.recall
+        return 0.0 if not p or not r else 2 * p * r / (p + r)
+
+
+def match_actions(marks: list[float], action_times: list[float], min_peak_g: float,
+                  before_s: float = 3.0, after_s: float = 20.0) -> ActionScore:
+    """A mark counts for an action when it falls `before_s` before to `after_s` after it (the coach taps
+    as the ball is bowled, or on the walk back). Greedy in time order, each used once."""
+    used: set[int] = set()
+    matched, missed = [], []
+    for m in sorted(marks):
+        hit = next((i for i, t in enumerate(action_times) if i not in used and t - before_s <= m <= t + after_s), None)
+        if hit is None:
+            missed.append(m)
+        else:
+            used.add(hit)
+            matched.append((m, action_times[hit]))
+    return ActionScore(min_peak_g, matched, missed, [t for i, t in enumerate(action_times) if i not in used])
