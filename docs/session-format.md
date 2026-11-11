@@ -116,7 +116,7 @@ t_ms,source,kind,x,y,z,value
 | `placement` | no | where the motion sensor was worn: `ankle`, `shin`, `thigh`, `wrist`, `waist`, `chest`, `upper_arm`, `phone_armband`, `phone_pocket`, … |
 | `notes` | no | free text |
 | `duration_ms` | no | written by the app at stop |
-| `summary` | no | written by the app at stop: `{load, efforts, fatigue_efforts, hr_avg, hr_max}`, plus `impact_load` (sum of footstrike peaks, g) and `strikes` when the motion came from a leg sensor, and `actions` + `actions_label` (e.g. `12`, `"deliveries"`) when the profile has an `actions` block. `load` is the motion load in (m/s²)·min; `efforts` and `fatigue_efforts` come from the live coach. Feeds the Today card |
+| `summary` | no | written by the app at stop: `{load, efforts, fatigue_efforts, hr_avg, hr_max}`, plus `impact_load` (sum of footstrike peaks, g) and `strikes` when the motion came from a leg sensor, and `actions` + `actions_label` (e.g. `12`, `"deliveries"`) when the profile has an `actions` block, with `first_action_g` / `last_action_g` (mean landing of the first and last few, for readiness and fatigue). `load` is the motion load in (m/s²)·min; `efforts` and `fatigue_efforts` come from the live coach. Feeds the Today card |
 | `player`, `group_id` | no | squad sessions (one phone, several sensors): each player's sensor is recorded as its own session with the player's name; all sessions of one squad session share a `group_id` |
 | `complete` | no | `false` while recording. A session that stays `false` was cut short (app killed), but its CSV is still valid up to that point. |
 
