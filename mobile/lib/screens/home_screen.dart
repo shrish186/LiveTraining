@@ -10,6 +10,7 @@ import '../sources/sensor_link.dart';
 import '../sources/whoop_hr_source.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'jump_test_screen.dart';
 import 'open_coach.dart';
 import 'sensor_picker.dart';
 import 'session_report_screen.dart';
@@ -253,8 +254,11 @@ class _ReadinessCard extends StatelessWidget {
     final r = c.readinessPct;
     final load = c.todayLoadPct;
     final week = c.weekLoadPct;
-    final word = r == null
-        ? 'Measured from your first over, after 3 sessions'
+    final jump = c.todayJumpVerdict;
+    final word = jump != null
+        ? (jump.pct == null ? 'Checked today · baseline building' : 'Checked today · ${jump.title.toLowerCase()}')
+        : r == null
+        ? 'Take the readiness check, or bowl: your first over is measured'
         : r < 92
         ? 'Softer start than usual: ease in'
         : r > 105
@@ -293,6 +297,25 @@ class _ReadinessCard extends StatelessWidget {
             ),
           ),
           Text(word, style: AppText.dim, textAlign: TextAlign.center),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: c.todayJumpTest == null
+                ? FilledButton.icon(
+                    onPressed: () =>
+                        Navigator.of(context)
+                            .push(MaterialPageRoute<void>(builder: (_) => JumpTestScreen(controller: c))),
+                    icon: const Icon(Icons.height_rounded),
+                    label: const Text('Readiness check · 30 s'),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: () =>
+                        Navigator.of(context)
+                            .push(MaterialPageRoute<void>(builder: (_) => JumpTestScreen(controller: c))),
+                    icon: const Icon(Icons.height_rounded, size: 18),
+                    label: Text('Jumped ${c.todayJumpTest!.scoreCm.toStringAsFixed(0)} cm today · redo'),
+                  ),
+          ),
           const SizedBox(height: 14),
           const Divider(height: 1, color: AppColors.outline),
           const SizedBox(height: 10),

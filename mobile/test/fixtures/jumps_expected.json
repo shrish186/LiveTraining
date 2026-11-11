@@ -1,0 +1,19 @@
+{
+  "jumps": [
+    {
+      "takeoff_s": 3.0,
+      "landing_s": 3.4231,
+      "height_cm": 21.952
+    },
+    {
+      "takeoff_s": 7.5,
+      "landing_s": 7.9808,
+      "height_cm": 28.347
+    },
+    {
+      "takeoff_s": 12.0,
+      "landing_s": 12.4519,
+      "height_cm": 25.042
+    }
+  ]
+}

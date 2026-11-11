@@ -52,6 +52,8 @@ logic and the sport profiles.
 - Repeated big actions at the end of a run-up (cricket deliveries) live in `analysis/ltlib/actions.py`; the app's
   `mobile/lib/coach/actions.dart` is its streaming twin (fed by `StrikeDetector`). Both read the profile's `actions`
   block, which also names them. Calls are `call_action` events.
+- The daily readiness check (`mobile/lib/readiness/jump_test.dart`) ports `ltlib/steps.py` `detect_jumps` (profile `jumps`
+  block; test settings in `jump_test`); `jumps_signal.csv` in the parity fixtures keeps the two in step.
 - Data quality (`analysis/ltlib/quality.py`, app twin `mobile/lib/report/signal_quality.dart`) reads the profile's
   `quality` block. Keep the two in step: their tests use the same cases.
 - The app's session report (`mobile/lib/report/session_report.dart`) replays the CSV through `LiveCoach`, so the

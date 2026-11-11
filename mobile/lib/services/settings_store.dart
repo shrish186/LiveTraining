@@ -35,6 +35,10 @@ class SettingsStore {
     }
   }
 
+  /// Daily readiness checks (JSON list, see readiness/jump_test.dart).
+  String? get jumpTests => _prefs.getString('jump_tests');
+  set jumpTests(String? v) => v == null ? _prefs.remove('jump_tests') : _prefs.setString('jump_tests', v);
+
   /// Player names for squad sessions (one phone, several sensors).
   List<String> get squadPlayers => _prefs.getStringList('squad_players') ?? const [];
   set squadPlayers(List<String> v) => _prefs.setStringList('squad_players', v);

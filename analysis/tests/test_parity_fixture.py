@@ -22,3 +22,13 @@ def test_spell_fixture_matches_current_analysis(tmp_path):
     _, meta = fx.spell_rows()
     (tmp_path / "s.json").write_text(json.dumps(meta))
     assert fx.spell_expected_from(csv, tmp_path / "s.json") == json.loads(fx.SPELL_EXPECTED.read_text())
+
+
+def test_jumps_fixture_matches_current_analysis():
+    assert fx.JUMPS_CSV.exists() and fx.JUMPS_EXPECTED.exists(), "run: python make_parity_fixture.py"
+    rows = fx.JUMPS_CSV.read_text().splitlines()[1:]
+    t = [float(r.split(",")[0]) for r in rows]
+    g = [float(r.split(",")[1]) for r in rows]
+    expected = json.loads(fx.JUMPS_EXPECTED.read_text())
+    assert fx.jumps_expected(t, g) == expected
+    assert len(expected["jumps"]) == 3

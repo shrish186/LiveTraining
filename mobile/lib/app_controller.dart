@@ -13,6 +13,7 @@ import 'coach/coach_context.dart';
 import 'coach/live_coach.dart';
 import 'coach/profiles.dart';
 import 'config.dart';
+import 'readiness/jump_test.dart';
 import 'recording/session_recorder.dart';
 import 'report/session_report.dart';
 import 'services/backend_api.dart';
@@ -161,6 +162,7 @@ class AppController extends ChangeNotifier {
     hr.addListener(notifyListeners);
     _uiTimer = Timer.periodic(tick, (_) {
       _checkMotionFlowing();
+      _tickJump();
       hrHistory.add(hr.lastBpm?.toDouble());
       motionHistory.add(motionError == null ? motionMagnitude : null);
       if (isRecording) {
@@ -173,6 +175,63 @@ class AppController extends ChangeNotifier {
     if (whoopEnabled) unawaited(refreshRecovery());
     final id = settings.sensorId;
     if (id != null) unawaited(connectSensor(FoundSensor(id, settings.sensorName ?? 'Sensor')));
+  }
+
+  // ---- daily readiness check (jumps) -------------------------------------------
+
+  /// Earlier checks, oldest first.
+  late final List<JumpTestResult> jumpTests = JumpTestResult.decodeAll(settings.jumpTests)
+    ..sort((a, b) => a.at.compareTo(b.at));
+
+  /// The check in progress (null when none).
+  JumpTestRun? jumpRun;
+
+  JumpConfig? get jumpConfig {
+    final p = _profiles;
+    return p == null ? null : JumpConfig.fromProfile(p.forSport(sport));
+  }
+
+  /// Today's most recent check and how it compares with the usual.
+  JumpTestResult? get todayJumpTest => jumpTests.where((r) => _sameDay(r.at, DateTime.now())).lastOrNull;
+
+  JumpVerdict? get todayJumpVerdict {
+    final r = todayJumpTest, c = jumpConfig;
+    return r == null || c == null ? null : jumpVerdict(r, jumpTests, c);
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// Starts a check with our sensor when it streams, else with the phone (held at the hip or in a pocket).
+  void startJumpTest() {
+    final c = jumpConfig;
+    if (c == null || isRecording) return;
+    jumpRun = JumpTestRun(c, sensorLive ? 'sensor' : 'phone', _liveClock.elapsedMilliseconds);
+    notifyListeners();
+  }
+
+  void cancelJumpTest() {
+    jumpRun = null;
+    notifyListeners();
+  }
+
+  void _feedJump(String source, int liveMs, double x, double y, double z) {
+    final run = jumpRun;
+    if (run == null || run.done || run.source != source) return;
+    run.add(liveMs, math.sqrt(x * x + y * y + z * z) / gravity);
+  }
+
+  void _tickJump() {
+    final run = jumpRun;
+    if (run == null || run.done) return;
+    if (run.update(_liveClock.elapsedMilliseconds)) {
+      final result = run.result;
+      if (result != null) {
+        jumpTests.add(result);
+        settings.jumpTests = JumpTestResult.encodeAll(
+          jumpTests.length > 120 ? jumpTests.sublist(jumpTests.length - 120) : jumpTests,
+        );
+      }
+    }
   }
 
   // ---- our leg sensor ---------------------------------------------------------
@@ -252,6 +311,7 @@ class AppController extends ChangeNotifier {
     _lastSensorMs = now;
     final x = s.x!, y = s.y!, z = s.z!;
     _liveSensor.add(x, y, z, now - s.ageMs);
+    _feedJump('sensor', now - s.ageMs, x, y, z);
     _sensorRecent.add((now - s.ageMs, math.sqrt(x * x + y * y + z * z) / gravity));
     while (_sensorRecent.isNotEmpty && _sensorRecent.first.$1 < now - 3000) {
       _sensorRecent.removeAt(0);
@@ -288,6 +348,7 @@ class AppController extends ChangeNotifier {
     if (s.kind == 'acc') {
       _lastAccMs = _liveClock.elapsedMilliseconds;
       _live.add(s.x!, s.y!, s.z!, _lastAccMs);
+      _feedJump('phone', _lastAccMs, s.x!, s.y!, s.z!);
     }
     _onSample(s);
   }
@@ -523,6 +584,9 @@ class AppController extends ChangeNotifier {
   /// (e.g. first over) against the median of the sessions before it. 100 = a normal day. Null without
   /// enough history or for a sport without actions.
   double? get readinessPct {
+    // Today's readiness check wins: it's measured fresh this morning.
+    final jump = todayJumpVerdict?.pct;
+    if (jump != null) return jump;
     final entries = sessions.map((s) => s.dayEntry).whereType<DayEntry>().toList();
     final mine = entries.where((e) => e.sport == sport && e.summary?.firstActionG != null).toList()
       ..sort((a, b) => b.startedAt.compareTo(a.startedAt));

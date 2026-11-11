@@ -49,6 +49,12 @@ profiles:
       max_flight_s: 1.0
       quiet_s: 0.8                   # standing still this long before (and settling after)
       quiet_std_g: 0.15
+    jump_test:                       # daily readiness check: countermovement jumps, height from flight time
+      jumps: 3                       # jumps per check
+      max_seconds: 40                # the check stops after this long
+      below_usual_pct: 6             # score this much under your usual (median of earlier checks): lower readiness
+      above_usual_pct: 4             # ...this much over: a good day
+      baseline_tests: 3              # earlier checks needed before comparing
     drift:                           # form drift: the last N efforts vs the first N
       compare_efforts: 2
     quality:                         # is a recording good enough to trust?

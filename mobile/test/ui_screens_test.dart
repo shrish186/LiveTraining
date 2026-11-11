@@ -20,7 +20,9 @@ import 'package:live_training/coach/live_coach.dart';
 import 'package:live_training/coach/profiles.dart';
 import 'package:live_training/recording/session_recorder.dart';
 import 'package:live_training/report/session_report.dart';
+import 'package:live_training/readiness/jump_test.dart';
 import 'package:live_training/screens/coach_chat_screen.dart';
+import 'package:live_training/screens/jump_test_screen.dart';
 import 'package:live_training/screens/session_report_screen.dart';
 import 'package:live_training/services/backend_api.dart';
 import 'package:live_training/services/session_store.dart';
@@ -375,7 +377,10 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('DELIVERIES'), findsWidgets);
     expect(find.text('Fatigue building late in the spell'), findsNWidgets(2)); // the verdict and the advice
-    await tester.scrollUntilVisible(find.textContaining('softer than the first 6: fatigue'), 300); // the deliveries card
+    await tester.scrollUntilVisible(
+      find.textContaining('softer than the first 6: fatigue'),
+      300,
+    ); // the deliveries card
     final dir = _previewDir;
     if (dir != null) {
       await tester.runAsync(() async {
@@ -419,6 +424,54 @@ void main() {
         final image = await boundary.toImage(pixelRatio: 1);
         final png = await image.toByteData(format: ui.ImageByteFormat.png);
         File('$dir/coach_chat.png').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
+  });
+
+  testWidgets('readiness check result', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'sport': 'cricket',
+      'jump_tests':
+          '[{"at":"2026-11-08T07:00:00","heights_cm":[27,28,27.5]},{"at":"2026-11-09T07:00:00","heights_cm":[28,29,28]},'
+          '{"at":"2026-11-10T07:00:00","heights_cm":[27.5,28,29]}]',
+    });
+    final c = AppController(await SettingsStore.load(), motionSource: _NoMotion(), hrSource: WhoopHrSource());
+    final cfg = JumpConfig.fromProfile(
+      SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync()).forSport('cricket'),
+    );
+    final run = JumpTestRun(cfg, 'sensor', 0);
+    final rows = File('test/fixtures/jumps_signal.csv').readAsLinesSync().skip(1).map((l) => l.split(','));
+    for (final r in rows) {
+      final ms = (double.parse(r[0]) * 1000).round();
+      run.add(ms, double.parse(r[1]));
+    }
+    run.update(16000);
+    c.jumpTests.add(run.result!);
+    c.jumpRun = run;
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          theme: buildTheme(),
+          debugShowCheckedModeBanner: false,
+          home: JumpTestScreen(controller: c),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.takeException(), isNull);
+    expect(find.text('Below your usual'), findsOneWidget); // 26.7 cm vs a usual of 28.5
+    final dir = _previewDir;
+    if (dir != null) {
+      await tester.runAsync(() async {
+        final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$dir/readiness_check.png').writeAsBytesSync(png!.buffer.asUint8List());
       });
     }
   });
