@@ -999,7 +999,7 @@ class _RecordingView extends StatelessWidget {
         Center(child: Text(_clock(r.elapsed), style: AppText.hero.copyWith(fontSize: 76, letterSpacing: -3))),
         const SizedBox(height: 28),
         Center(
-          child: Text(heroValue, style: AppText.hero.copyWith(fontSize: 96, color: AppColors.accent)),
+          child: Text(heroValue, style: AppText.hero.copyWith(fontSize: 96, color: AppColors.brand)),
         ),
         Center(child: Text(heroLabel, style: AppText.label)),
         const SizedBox(height: 28),

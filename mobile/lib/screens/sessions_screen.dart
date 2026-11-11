@@ -168,6 +168,9 @@ class _SessionTile extends StatelessWidget {
       trailing = const StatusPill(color: AppColors.good, text: 'Uploaded');
     } else if (failed) {
       trailing = StatusPill(color: AppColors.danger, text: 'Failed', onTap: () => _showFailure(context, status!));
+    } else if (c.settings.backendUrl.isEmpty) {
+      // No server: sessions live on the phone (Share sends them anywhere). Just open the report.
+      trailing = const Icon(Icons.chevron_right_rounded, color: AppColors.textFaint);
     } else {
       trailing = FilledButton.tonalIcon(
         style: FilledButton.styleFrom(
