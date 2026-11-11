@@ -2,6 +2,8 @@
 // The app parses this output in mobile/test/sensor_protocol_test.dart, so the firmware and the
 // app can't drift apart.
 //   g++ -std=c++17 -o /tmp/test_packet test_packet.cpp && /tmp/test_packet > ../../mobile/test/fixtures/sensor_packet.hex
+#include <cassert>
+#include <cmath>
 #include <cstdio>
 
 #include "leg_sensor/packet.h"
@@ -22,5 +24,22 @@ int main() {
   // Line 3: how many samples fit a 244-byte notification (acc+gyro, acc only) and a 20-byte one.
   printf("%d %d %d %d\n", lt_max_samples(244, true), lt_max_samples(244, false), lt_max_samples(20, true),
          lt_max_samples(20, false));
+  // Fusion checks (asserts: the program fails if the fusion is wrong).
+  float fo[3];
+  const float still[3] = {0, 1000, 0}, hi_still[3] = {30, 980, -20};
+  lt_fuse_mg(still, hi_still, true, fo);  // calm: the precise reading, untouched
+  assert(fo[0] == 0 && fo[1] == 1000 && fo[2] == 0);
+  const float clipped[3] = {16000, 4000, 0}, hi_land[3] = {-5000, 38000, 2000};  // axes differ, magnitude ~38.4 g
+  lt_fuse_mg(clipped, hi_land, true, fo);
+  float mag = sqrtf(fo[0] * fo[0] + fo[1] * fo[1] + fo[2] * fo[2]);
+  float hi_mag = sqrtf(5000.0f * 5000 + 38000.0f * 38000 + 2000.0f * 2000);
+  assert(fabsf(mag - hi_mag) < 1.0f);         // magnitude from the high-g sensor
+  assert(fo[0] > 0 && fo[1] > 0);           // direction from the IMU
+  lt_fuse_mg(clipped, hi_land, false, fo);   // no high-g sensor: unchanged
+  assert(fo[0] == 16000);
+  const float mid[3] = {14000, 0, 0}, hi_mid[3] = {20000, 0, 0};
+  lt_fuse_mg(mid, hi_mid, true, fo);         // half way into the blend
+  assert(fo[0] > 14000 && fo[0] < 20000);
+  assert(lt_to_counts(250000.0f, 10) == 25000 && lt_to_counts(500000.0f, 10) == 32767);
   return 0;
 }

@@ -28,7 +28,9 @@ Device name: `LT-xxxx` (last 4 hex digits of the device address), also printed o
 | 12 | n × record | samples, oldest first |
 
 Record: `ax, ay, az` as i16 (× scale = milli-g, gravity included, low-g and high-g ranges already fused on the
-sensor). With the gyro flag: followed by `gx, gy, gz` as i16 in units of 70 mdps (±2294 °/s).
+sensor: below 12 g the precise low-g reading, towards 16 g its direction with the high-g sensor's magnitude; see
+`lt_fuse_mg` in `hardware/firmware/leg_sensor/packet.h` and `fuse_ranges` in `analysis/ltlib/quality.py`). The prototype
+sends scale 1 without a high-g sensor and 10 with one. With the gyro flag: followed by `gx, gy, gz` as i16 in units of 70 mdps (±2294 °/s).
 
 A 244-byte notification carries 38 acc-only samples or 19 acc+gyro samples.
 
@@ -51,4 +53,4 @@ time on the phone's session clock. See `SensorClock` and `analysis/ltlib/quality
 ## Status (read / notify)
 
 `u8 battery %`, `u8 flags` (bit 0 charging, bit 1 recording to flash, bit 2 worn), `u16 clipped-sample count since
-start`, `u16 firmware version`.
+start` (samples at the limit that no high-g sensor covered), `u16 firmware version` (2 = high-g fusion).

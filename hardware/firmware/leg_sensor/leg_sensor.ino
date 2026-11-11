@@ -1,10 +1,16 @@
-// Leg sensor firmware, prototype v0: Seeed XIAO nRF52840 Sense, built-in LSM6DS3TR-C.
-// Streams accelerometer (+-16 g) and gyroscope (+-2000 dps) at 104 Hz over Bluetooth LE, in the
-// packet format of docs/sensor-protocol.md. Board: "Seeed XIAO nRF52840 Sense" (Seeed nRF52 Boards).
+// Leg sensor firmware, prototype v1: Seeed XIAO nRF52840 Sense (built-in LSM6DS3TR-C) plus an
+// optional Adafruit ADXL375 (+-200 g) on the external I2C pins (SDA D4, SCL D5, address 0x53).
+// Streams accelerometer and gyroscope (+-2000 dps) at 104 Hz over Bluetooth LE, in the packet
+// format of docs/sensor-protocol.md. Board: "Seeed XIAO nRF52840 Sense" (Seeed nRF52 Boards).
+//
+// With the ADXL375 fitted the sensor fuses the two accelerometers (lt_fuse_mg in packet.h) and
+// sends 10 mg per count, so landings up to +-200 g arrive unclipped. Without it, it behaves like
+// v0: +-16 g at 1 mg per count, and clipped samples are counted in the status.
+// UNTESTED ON HARDWARE: compiled and the fusion maths unit-tested, nothing more yet.
 //
 // LED: blue blinking = advertising, green = connected and streaming, red flash = IMU not found.
-// Known limits of v0: +-16 g (hard landings clip; the app's quality check flags it), no flash
-// recording, no EMG. Those arrive with the high-g IMU and the custom board (hardware/DESIGN.md).
+// At start-up: one long green flash = high-g sensor found, one long red = not found (still works).
+// Not here yet: flash recording, EMG. Those arrive with the custom board (hardware/DESIGN.md).
 
 #include <bluefruit.h>
 #include <Wire.h>
@@ -65,6 +71,45 @@ static bool imuBegin() {
          && imuWrite(REG_CTRL2_G, 0x4C);  // gyroscope 104 Hz, +-2000 dps (70 mdps per count)
 }
 
+// ---- high-g accelerometer (ADXL375 on the external I2C bus, optional) -----------------------------
+#define HIGHG_ADDR 0x53
+#define HIGHG_DEVID 0x00          // reads 0xE5
+#define HIGHG_BW_RATE 0x2C
+#define HIGHG_POWER_CTL 0x2D
+#define HIGHG_DATA_FORMAT 0x31
+#define HIGHG_DATAX0 0x32
+#define HIGHG_MG_PER_COUNT 49.0f
+#define SCALE_LOWG 1   // packet mg per count without the high-g sensor (+-32 g fits)
+#define SCALE_HIGHG 10 // with it (+-327 g fits)
+
+static bool haveHighG = false;
+
+static bool highgWrite(uint8_t reg, uint8_t value) {
+  Wire.beginTransmission(HIGHG_ADDR);
+  Wire.write(reg);
+  Wire.write(value);
+  return Wire.endTransmission() == 0;
+}
+
+static bool highgRead(uint8_t reg, uint8_t *buf, uint8_t len) {
+  Wire.beginTransmission(HIGHG_ADDR);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;
+  if (Wire.requestFrom((uint8_t)HIGHG_ADDR, len) != len) return false;
+  for (uint8_t i = 0; i < len; i++) buf[i] = Wire.read();
+  return true;
+}
+
+static bool highgBegin() {
+  Wire.begin();
+  Wire.setClock(400000);
+  uint8_t id = 0;
+  if (!highgRead(HIGHG_DEVID, &id, 1) || id != 0xE5) return false;
+  return highgWrite(HIGHG_BW_RATE, 0x0C)        // 400 Hz output, 200 Hz bandwidth: keeps short peaks
+         && highgWrite(HIGHG_DATA_FORMAT, 0x0B)  // right-justified, +-200 g (49 mg per count)
+         && highgWrite(HIGHG_POWER_CTL, 0x08);   // measure
+}
+
 // ---- state ------------------------------------------------------------------------------------
 #define MAX_BATCH 19  // acc + gyro samples in one 244-byte notification
 static lt_sample_t batch[MAX_BATCH];
@@ -95,7 +140,7 @@ static void sendStatus() {
   s[0] = batteryPercent();
   s[1] = 0;  // flags: charging / recording / worn are not available on the v0 prototype
   lt_put16(s + 2, clipped);
-  lt_put16(s + 4, 1);  // firmware version
+  lt_put16(s + 4, 2);  // firmware version
   statusChar.write(s, sizeof(s));
   if (connHandle != BLE_CONN_HANDLE_INVALID) statusChar.notify(connHandle, s, sizeof(s));
 }
@@ -106,7 +151,8 @@ static void flushBatch() {
     return;
   }
   uint8_t out[LT_HEADER_SIZE + MAX_BATCH * LT_RECORD_ACC_GYRO];
-  uint16_t len = lt_build_packet(out, seq, batchFirstMs, SAMPLE_PERIOD_US, 1, true, batch, batchCount);
+  uint16_t len = lt_build_packet(out, seq, batchFirstMs, SAMPLE_PERIOD_US, haveHighG ? SCALE_HIGHG : SCALE_LOWG, true, batch,
+                                 batchCount);
   // If the radio queue is full the packet is dropped; the app sees the gap in the sequence numbers.
   streamChar.notify(connHandle, out, len);
   seq++;
@@ -155,6 +201,11 @@ void setup() {
     digitalWrite(LED_RED, HIGH);
     delay(900);
   }
+  haveHighG = highgBegin();
+  uint8_t led = haveHighG ? LED_GREEN : LED_RED;
+  digitalWrite(led, LOW);
+  delay(600);
+  digitalWrite(led, HIGH);
 
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);  // large MTU and queue for streaming
   Bluefruit.begin();
@@ -218,13 +269,29 @@ void loop() {
   int16_t g[3], a[3];
   memcpy(g, raw, 6);
   memcpy(a, raw + 6, 6);
-  lt_sample_t &s = batch[batchCount];
+  float low[3], high[3] = {0, 0, 0}, fused[3];
+  bool atLimit = false;
   for (uint8_t i = 0; i < 3; i++) {
-    if (a[i] >= ACC_LIMIT_COUNTS || a[i] <= -ACC_LIMIT_COUNTS) clipped++;
+    low[i] = a[i] * ACC_MG_PER_COUNT;
+    if (a[i] >= ACC_LIMIT_COUNTS || a[i] <= -ACC_LIMIT_COUNTS) atLimit = true;
   }
-  s.ax = (int16_t)lroundf(a[0] * ACC_MG_PER_COUNT);
-  s.ay = (int16_t)lroundf(a[1] * ACC_MG_PER_COUNT);
-  s.az = (int16_t)lroundf(a[2] * ACC_MG_PER_COUNT);
+  bool highOk = false;
+  if (haveHighG) {
+    uint8_t hraw[6];
+    if (highgRead(HIGHG_DATAX0, hraw, sizeof(hraw))) {
+      int16_t h[3];
+      memcpy(h, hraw, 6);
+      for (uint8_t i = 0; i < 3; i++) high[i] = h[i] * HIGHG_MG_PER_COUNT;
+      highOk = true;
+    }
+  }
+  if (atLimit && !highOk) clipped++;  // only a real loss when the high-g sensor can't cover it
+  lt_fuse_mg(low, high, highOk, fused);
+  uint8_t scale = haveHighG ? SCALE_HIGHG : SCALE_LOWG;
+  lt_sample_t &s = batch[batchCount];
+  s.ax = lt_to_counts(fused[0], scale);
+  s.ay = lt_to_counts(fused[1], scale);
+  s.az = lt_to_counts(fused[2], scale);
   s.gx = g[0];
   s.gy = g[1];
   s.gz = g[2];
