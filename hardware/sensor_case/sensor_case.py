@@ -1,12 +1,18 @@
-"""Prototype leg-sensor case: Seeed XIAO nRF52840 Sense + 502030 LiPo, strapped to the shin or ankle.
+"""Prototype leg-sensor case: Seeed XIAO nRF52840 Sense + Adafruit ADXL375 (high-g) + 502030 LiPo, strapped to the
+shin or ankle.
 
 Parametric (CadQuery). Change the numbers below and run:
 
     pip install cadquery
     python sensor_case.py            # writes case_body / case_lid as .step and .stl
 
-Layout (sensor long axis along the shin):
-  - Battery on the floor, XIAO on top of it, pushed against the +X wall where its USB-C port is.
+Layout (sensor long axis along the shin), bottom to top:
+  - ADXL375 breakout flat on the floor (firm double-sided tape): the high-g sensor sits closest to the leg on the
+    stiffest surface, so impact peaks reach it undamped. Set HIGHG = False for a XIAO-only build.
+  - Battery on top of it, XIAO on top of that, pushed against the +X wall where its USB-C port is.
+  - This stack needs the XIAO *without* header pins and four short wires soldered (3V3, GND, D4, D5) plus the
+    battery on the XIAO's BAT pads. A pre-soldered XIAO with plugged-on jumper wires is ~17 mm taller: use it on the
+    bench, not in this case.
   - Strap loops on both long sides for a 25 mm elastic / hook-and-loop strap around the leg.
   - The underside is curved to sit on a leg (radius LEG_RADIUS) so the case can't rock: a rigid
     mount matters more for clean impact peaks than anything else here.
@@ -24,6 +30,8 @@ XIAO_L, XIAO_W, XIAO_H = 21.0, 17.8, 3.6      # board incl. components (mm)
 BATT_L, BATT_W, BATT_H = 30.0, 20.0, 5.0      # 502030 LiPo, ~250 mAh
 USB_W, USB_H = 9.4, 3.6                       # USB-C receptacle opening
 STACK_GAP = 0.6                               # foam tape between battery and board
+HIGHG = True                                  # ADXL375 breakout under the battery
+HIGHG_L, HIGHG_W, HIGHG_H = 25.6, 17.8, 4.6   # Adafruit ADXL375: 1.6 mm board + parts incl. STEMMA connector
 
 # --- case --------------------------------------------------------------------------------------
 CLEAR = 1.0          # clearance around the parts
@@ -40,9 +48,10 @@ SLOT_GAP = 1.5       # wall to strap slot
 LEG_RADIUS = 45.0    # underside curvature (shin/ankle)
 LED_HOLE_D = 2.0
 
-IN_L = max(XIAO_L, BATT_L) + 2 * CLEAR
-IN_W = max(XIAO_W, BATT_W) + 2 * CLEAR
-IN_H = BATT_H + STACK_GAP + XIAO_H + LID_LIP + 0.6   # the lid lip must clear the USB-C connector
+HIGHG_STACK = HIGHG_H + STACK_GAP if HIGHG else 0.0   # height taken by the high-g board and its tape
+IN_L = max(XIAO_L, BATT_L, HIGHG_L if HIGHG else 0) + 2 * CLEAR
+IN_W = max(XIAO_W, BATT_W, HIGHG_W if HIGHG else 0) + 2 * CLEAR
+IN_H = HIGHG_STACK + BATT_H + STACK_GAP + XIAO_H + LID_LIP + 0.6   # the lid lip must clear the USB-C connector
 OUT_L, OUT_W = IN_L + 2 * WALL, IN_W + 2 * WALL
 OUT_H = FLOOR + IN_H
 SAG = LEG_RADIUS - (LEG_RADIUS ** 2 - ((OUT_W + 2 * TAB) / 2) ** 2) ** 0.5  # curve depth at the tab tips
@@ -84,7 +93,7 @@ def body() -> cq.Workplane:
     shell = shell.cut(leg)
 
     # USB-C opening in the +X wall, centred on the board's connector height.
-    usb_z = FLOOR + BATT_H + STACK_GAP + 1.2 + USB_H / 2 - 0.4
+    usb_z = FLOOR + HIGHG_STACK + BATT_H + STACK_GAP + 1.2 + USB_H / 2 - 0.4
     usb = (
         cq.Workplane("YZ", origin=(OUT_L / 2 - WALL - 0.5, 0, usb_z))
         .rect(USB_W, USB_H)
