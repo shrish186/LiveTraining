@@ -533,6 +533,30 @@ class AppController extends ChangeNotifier {
     return usual == null || usual <= 0 ? null : mine.first.summary!.firstActionG! / usual * 100;
   }
 
+  /// Days in a row with at least one session, counting back from today (or from yesterday, so the streak
+  /// doesn't read 0 in the morning before training).
+  int get streakDays {
+    final days = {
+      for (final e in sessions.map((s) => s.dayEntry).whereType<DayEntry>())
+        DateTime(e.startedAt.year, e.startedAt.month, e.startedAt.day),
+    };
+    final now = DateTime.now();
+    var d = DateTime(now.year, now.month, now.day);
+    if (!days.contains(d)) d = DateTime(d.year, d.month, d.day - 1);
+    var n = 0;
+    while (days.contains(d)) {
+      n++;
+      d = DateTime(d.year, d.month, d.day - 1);
+    }
+    return n;
+  }
+
+  /// This week's load as % of the usual week (null without 3 weeks of history).
+  double? get weekLoadPct {
+    final r = trends.loadRatio;
+    return r == null ? null : r * 100;
+  }
+
   /// Today's load as % of the athlete's usual training day (4 weeks). Null until there are 2 weeks of
   /// history: before that the "usual day" is mostly empty days and the % would be meaningless.
   double? get todayLoadPct {

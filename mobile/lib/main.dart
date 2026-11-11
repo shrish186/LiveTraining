@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_controller.dart';
 import 'config.dart';
 import 'screens/home_screen.dart';
+import 'screens/open_coach.dart';
 import 'screens/sessions_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/squad_screen.dart';
@@ -68,7 +69,14 @@ class _ShellState extends State<_Shell> {
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
+    final items = [
+      (Icons.insights_rounded, 'Today'),
+      (Icons.timeline_rounded, 'Sessions'),
+      if (widget.squad != null) (Icons.groups_rounded, 'Squad'),
+      (Icons.tune_rounded, 'Settings'),
+    ];
     return Scaffold(
+      extendBody: true,
       body: SafeArea(
         bottom: false,
         child: IndexedStack(
@@ -81,19 +89,65 @@ class _ShellState extends State<_Shell> {
           ],
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: _go,
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.monitor_heart_outlined),
-            selectedIcon: Icon(Icons.monitor_heart),
-            label: 'LIVE',
-          ),
-          const NavigationDestination(icon: Icon(Icons.timeline_rounded), label: 'SESSIONS'),
-          if (widget.squad != null) const NavigationDestination(icon: Icon(Icons.groups_rounded), label: 'SQUAD'),
-          const NavigationDestination(icon: Icon(Icons.tune_rounded), label: 'SETTINGS'),
-        ],
+      // Floating bar with a round coach button beside it.
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 66,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceHigh.withValues(alpha: 0.96),
+                  borderRadius: BorderRadius.circular(33),
+                  boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 16, offset: Offset(0, 4))],
+                ),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < items.length; i++)
+                      Expanded(
+                        child: InkResponse(
+                          onTap: () => _go(i),
+                          radius: 36,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(items[i].$1, size: 24, color: i == _tab ? AppColors.text : AppColors.textFaint),
+                              const SizedBox(height: 3),
+                              Text(
+                                items[i].$2,
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: i == _tab ? FontWeight.w700 : FontWeight.w500,
+                                  color: i == _tab ? AppColors.text : AppColors.textFaint,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Tooltip(
+              message: 'Coach',
+              child: Material(
+                color: AppColors.surfaceHigh,
+                shape: const CircleBorder(side: BorderSide(color: AppColors.load, width: 2)),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: () => openCoach(context, c),
+                  child: const SizedBox.square(
+                    dimension: 62,
+                    child: Icon(Icons.auto_awesome_rounded, color: AppColors.load, size: 26),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

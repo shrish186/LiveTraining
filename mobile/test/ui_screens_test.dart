@@ -160,7 +160,7 @@ Future<void> _pump(WidgetTester tester, AppController c, String name, {int tab =
     ),
   );
   if (tab != 0) {
-    await tester.tap(find.text(['LIVE', 'SESSIONS', 'SETTINGS'][tab]));
+    await tester.tap(find.text(['Today', 'Sessions', 'Settings'][tab]));
   }
   await tester.pump(const Duration(seconds: 1)); // ring animation
   expect(tester.takeException(), isNull);
@@ -249,10 +249,10 @@ void main() {
     expect(c.sensorLive, isTrue);
     expect(c.settings.sensorId, 'A');
     await _pump(tester, c, 'home_sensor');
-    expect(find.text('LT-3F2A'), findsOneWidget); // the sensor chip in the header
+    expect(find.text('SENSOR STREAMING'), findsOneWidget); // the status strip
     expect(find.text('READINESS'), findsOneWidget);
-    expect(find.text('Connect your sensor'), findsNothing);
-    await tester.tap(find.text('LT-3F2A'));
+    expect(find.text('GOOD SIGNAL'), findsOneWidget); // the sensor tile
+    await tester.tap(find.text('GOOD SIGNAL'));
     await tester.pumpAndSettle();
     expect(find.text('Forget'), findsOneWidget); // the sensor sheet
     await tester.runAsync(() async {

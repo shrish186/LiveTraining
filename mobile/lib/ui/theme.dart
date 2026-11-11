@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 
 /// Design tokens. Dark, high-contrast, numbers first: one accent per metric.
 abstract final class AppColors {
-  static const background = Color(0xFF0A0B0D);
-  static const surface = Color(0xFF15171B);
-  static const surfaceHigh = Color(0xFF1E2126);
-  static const outline = Color(0xFF2A2E35);
-  static const text = Color(0xFFF2F4F7);
-  static const textDim = Color(0xFF8B929C);
-  static const textFaint = Color(0xFF5B616B);
+  // Slate, not black: softer on the eyes and lets the cards read as layers.
+  static const background = Color(0xFF1F242A);
+  static const backgroundTop = Color(0xFF2A3037);
+  static const surface = Color(0xFF2B3138);
+  static const surfaceHigh = Color(0xFF363D45);
+  static const outline = Color(0xFF424A53);
+  static const text = Color(0xFFF4F6F8);
+  static const textDim = Color(0xFFA3AAB3);
+  static const textFaint = Color(0xFF6E7680);
 
   static const accent = Color(0xFF4CC9F0); // primary actions, motion
   static const heart = Color(0xFFFF4D6D); // heart rate
@@ -34,6 +36,14 @@ abstract final class AppText {
     fontWeight: FontWeight.w600,
     letterSpacing: 1.6,
     color: AppColors.textDim,
+  );
+
+  /// Card and section titles: bold, white, widely spaced caps (write the text in caps).
+  static const section = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 2.2,
+    color: AppColors.text,
   );
   static const hero = TextStyle(
     fontSize: 64,

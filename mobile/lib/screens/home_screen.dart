@@ -13,9 +13,7 @@ import '../ui/widgets.dart';
 import 'open_coach.dart';
 import 'sensor_picker.dart';
 import 'session_report_screen.dart';
-
-const _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import 'trends_screen.dart';
 
 String _clock(Duration d) {
   String two(int n) => n.toString().padLeft(2, '0');
@@ -54,101 +52,150 @@ class _TodayView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final now = DateTime.now();
     final advice = c.homeAdvice;
-    final last = c.sessions.where((s) => !c.isRecording && s.player == null).firstOrNull;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${_weekdays[now.weekday - 1]}, ${_months[now.month - 1]} ${now.day}',
-                style: AppText.dim.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
+    final last = c.sessions.where((s) => s.player == null).firstOrNull;
+    final today = c.today;
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment(0, 0.2),
+          colors: [AppColors.backgroundTop, AppColors.background],
+        ),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+        children: [
+          _TopBar(controller: c),
+          const SizedBox(height: 14),
+          _StatusStrip(controller: c),
+          const SizedBox(height: 26),
+          _ThreeRings(controller: c),
+          const SizedBox(height: 26),
+          Row(
+            children: [
+              Expanded(
+                child: _LastSessionTile(controller: c, session: last),
               ),
-            ),
-            _SensorChip(controller: c),
-          ],
-        ),
-        const SizedBox(height: 28),
-        _Rings(controller: c),
-        const SizedBox(height: 22),
-        if (advice.isNotEmpty) _Insight(advice: advice.first, onMore: () => openCoach(context, c)),
-        const SizedBox(height: 28),
-        if (c.sensor == null) ...[_ConnectSensorRow(controller: c), const SizedBox(height: 14)],
-        _SetupChips(controller: c),
-        const SizedBox(height: 14),
-        SizedBox(
-          height: 60,
-          child: FilledButton.icon(
-            onPressed: c.startSession,
-            icon: const Icon(Icons.play_arrow_rounded, size: 28),
-            label: const Text('Start session'),
+              const SizedBox(width: 12),
+              Expanded(child: _SensorTile(controller: c)),
+            ],
           ),
-        ),
-        if (last != null) ...[
-          const SizedBox(height: 32),
-          const Text('LAST SESSION', style: AppText.label),
-          const SizedBox(height: 10),
-          _LastSessionRow(controller: c, session: last),
+          const SizedBox(height: 30),
+          Row(
+            children: [
+              Expanded(child: Text('My Day', style: AppText.title.copyWith(fontSize: 26))),
+              Material(
+                color: AppColors.text,
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => _showStartSheet(context, c),
+                  child: const SizedBox.square(
+                    dimension: 48,
+                    child: Icon(Icons.add_rounded, color: AppColors.background, size: 30),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (advice.isNotEmpty) ...[
+            _Outlook(advice: advice.first, onTap: () => openCoach(context, c)),
+            const SizedBox(height: 12),
+          ],
+          _TodaySessions(
+            controller: c,
+            sessions: c.sessions.where((s) => s.player == null && _isToday(s.startedAt)).toList(),
+          ),
+          const SizedBox(height: 12),
+          _WeekChecks(controller: c),
+          if (whoopEnabled) ...[
+            const SizedBox(height: 12),
+            _RecoveryCard(controller: c, onOpenSettings: onOpenSettings),
+          ],
+          const SizedBox(height: 16),
+          _HeartRateRow(controller: c),
+          if (today.sessions == 0 && c.sessions.isEmpty) ...[
+            const SizedBox(height: 8),
+            const Text('Tap + to record your first session.', style: AppText.dim, textAlign: TextAlign.center),
+          ],
         ],
-        if (whoopEnabled) ...[const SizedBox(height: 24), _RecoveryCard(controller: c, onOpenSettings: onOpenSettings)],
-        const SizedBox(height: 24),
-        _HeartRateRow(controller: c),
-      ],
+      ),
     );
   }
 }
 
-/// Two rings, WHOOP-style: readiness from the sensor (100 = your usual start) and today's load against
-/// your usual day. Each says in words what the number means.
-class _Rings extends StatelessWidget {
-  const _Rings({required this.controller});
+bool _isToday(DateTime? t) {
+  if (t == null) return false;
+  final n = DateTime.now();
+  return t.year == n.year && t.month == n.month && t.day == n.day;
+}
+
+/// Streak, TODAY, and the sensor at a glance.
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.controller});
 
   final AppController controller;
 
   @override
   Widget build(BuildContext context) {
-    final r = controller.readinessPct;
-    final load = controller.todayLoadPct;
-    final (rColor, rWord) = r == null
-        ? (AppColors.textFaint, 'After 3 sessions')
-        : r < 92
-        ? (AppColors.warning, 'Below your usual')
-        : r > 105
-        ? (AppColors.good, 'Sharper than usual')
-        : (AppColors.good, 'Normal for you');
-    final lWord = load == null
-        ? (controller.today.sessions == 0 ? 'No training yet' : 'Usual day after 2 weeks')
-        : load >= 130
-        ? 'Well above your usual day'
-        : load >= 80
-        ? 'A full day for you'
-        : load > 0
-        ? 'Lighter than usual'
-        : 'Rest so far';
+    final streak = controller.streakDays;
+    final (color, _) = _sensorStatus(controller);
     return Row(
       children: [
-        Expanded(
-          child: LabeledRing(
-            label: 'READINESS',
-            value: r == null ? null : (r / 120).clamp(0.0, 1.0),
-            color: rColor,
-            number: r == null ? '—' : '${r.round()}',
-            unit: r == null ? null : '%',
-            word: rWord,
+        Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(20)),
+          child: Row(
+            children: [
+              Icon(
+                Icons.local_fire_department_rounded,
+                size: 20,
+                color: streak > 0 ? AppColors.warning : AppColors.textFaint,
+              ),
+              const SizedBox(width: 6),
+              Text('$streak', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+            ],
           ),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: LabeledRing(
-            label: 'LOAD TODAY',
-            value: load == null ? (controller.today.load > 0 ? 1.0 : 0.0) : (load / 150).clamp(0.0, 1.0),
-            color: AppColors.load,
-            number: load == null ? controller.today.load.toStringAsFixed(0) : (load > 300 ? '300+' : '${load.round()}'),
-            unit: load == null ? null : '%',
-            word: lWord,
+        const Spacer(),
+        Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 26),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(20)),
+          child: const Text('TODAY', style: AppText.section),
+        ),
+        const Spacer(),
+        InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => controller.sensor == null
+              ? _pickSensor(context, controller)
+              : showModalBottomSheet<void>(
+                  context: context,
+                  showDragHandle: true,
+                  builder: (_) => _SensorSheet(controller: controller),
+                ),
+          child: SizedBox(
+            height: 40,
+            width: 52,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Icon(Icons.sensors_rounded, size: 28, color: AppColors.textDim),
+                Positioned(
+                  right: 10,
+                  top: 6,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -156,12 +203,325 @@ class _Rings extends StatelessWidget {
   }
 }
 
-/// One sentence of advice under the rings; tapping it opens the coach.
-class _Insight extends StatelessWidget {
-  const _Insight({required this.advice, required this.onMore});
+/// One dark strip: is the sensor streaming? (the "data caught up" line of a wearable app)
+class _StatusStrip extends StatelessWidget {
+  const _StatusStrip({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    final link = c.sensor;
+    final (color, _) = _sensorStatus(c);
+    final blocked = link == null && c.bluetoothError != null;
+    final (icon, left, right) = blocked
+        ? (Icons.bluetooth_disabled_rounded, 'BLUETOOTH NOT ALLOWED', 'SETTINGS')
+        : link == null
+        ? (Icons.sensors_off_rounded, 'NO SENSOR CONNECTED', 'CONNECT')
+        : link.state == SensorState.live && c.sensorLive
+        ? (Icons.sensors_rounded, 'SENSOR STREAMING', '${c.sensorRateHz.round()} HZ')
+        : link.state == SensorState.lost
+        ? (Icons.sensors_off_rounded, 'SENSOR OUT OF RANGE', 'RECONNECTING')
+        : (Icons.sensors_rounded, 'CONNECTING TO SENSOR', link.sensor.name);
+    return Material(
+      color: const Color(0xFF111418),
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: blocked ? openAppSettings : (link == null ? () => _pickSensor(context, c) : null),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: AppColors.textDim),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  left,
+                  style: AppText.section.copyWith(fontSize: 12.5),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                right,
+                style: AppText.label.copyWith(color: color == AppColors.textFaint ? AppColors.accent : color),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Readiness, load today, and the week: three compact rings with a label and a chevron.
+class _ThreeRings extends StatelessWidget {
+  const _ThreeRings({required this.controller});
+
+  final AppController controller;
+
+  void _openTrends(BuildContext context) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => TrendsScreen(trends: controller.trends, onAskCoach: () => openCoach(context, controller)),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final r = controller.readinessPct;
+    final load = controller.todayLoadPct;
+    final week = controller.weekLoadPct;
+    final rColor = r == null ? AppColors.textFaint : (r < 92 ? AppColors.warning : AppColors.good);
+    String pct(double v) => v > 300 ? '300+' : '${v.round()}';
+    return Row(
+      children: [
+        Expanded(
+          child: _MiniRing(
+            label: 'READINESS',
+            value: r == null ? null : (r / 120).clamp(0.0, 1.0),
+            color: rColor,
+            number: r == null ? '—' : pct(r),
+            unit: r == null ? null : '%',
+            onTap: () => _openTrends(context),
+          ),
+        ),
+        Expanded(
+          child: _MiniRing(
+            label: 'LOAD',
+            value: load == null ? (controller.today.load > 0 ? 1.0 : 0.0) : (load / 150).clamp(0.0, 1.0),
+            color: AppColors.load,
+            number: load == null ? controller.today.load.toStringAsFixed(0) : pct(load),
+            unit: load == null ? null : '%',
+            onTap: () => _openTrends(context),
+          ),
+        ),
+        Expanded(
+          child: _MiniRing(
+            label: 'WEEK',
+            value: week == null ? null : (week / 150).clamp(0.0, 1.0),
+            color: week == null ? AppColors.textFaint : (week > 130 ? AppColors.warning : AppColors.accent),
+            number: week == null ? '—' : pct(week),
+            unit: week == null ? null : '%',
+            onTap: () => _openTrends(context),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniRing extends StatelessWidget {
+  const _MiniRing({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.number,
+    required this.onTap,
+    this.unit,
+  });
+
+  final String label;
+  final double? value;
+  final Color color;
+  final String number;
+  final String? unit;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        children: [
+          RingGauge(
+            value: value,
+            color: color,
+            size: 104,
+            thickness: 8,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(number, style: AppText.big.copyWith(fontSize: 30)),
+                if (unit != null) Text(unit!, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: AppText.section.copyWith(fontSize: 12.5)),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textDim),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A small card with a title, an icon square and two lines (like a wearable's monitor tiles).
+class _Tile extends StatelessWidget {
+  const _Tile({
+    required this.title,
+    required this.badge,
+    required this.badgeColor,
+    required this.line1,
+    required this.line2,
+    this.onTap,
+  });
+
+  final String title;
+  final Widget badge;
+  final Color badgeColor;
+  final String line1;
+  final String line2;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppText.section.copyWith(fontSize: 12.5),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.textDim),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: badge,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      line1,
+                      style: AppText.label.copyWith(color: badgeColor, fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(line2, style: AppText.dim, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LastSessionTile extends StatelessWidget {
+  const _LastSessionTile({required this.controller, required this.session});
+
+  final AppController controller;
+  final LocalSession? session;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = session;
+    final sum = s?.summary;
+    final first = sum?.firstActionG, lastG = sum?.lastActionG;
+    final held = first != null && lastG != null && first > 0 ? lastG / first * 100 : null;
+    final color = held == null ? AppColors.accent : (held < 90 ? AppColors.warning : AppColors.good);
+    final big = sum?.actions != null ? '${sum!.actions}' : (sum == null ? '—' : sum.load.toStringAsFixed(0));
+    return _Tile(
+      title: 'LAST SESSION',
+      badge: Text(
+        big,
+        style: AppText.body.copyWith(fontWeight: FontWeight.w800, color: color),
+      ),
+      badgeColor: color,
+      line1: s == null
+          ? 'NONE YET'
+          : held == null
+          ? (sum?.actions != null ? (sum!.actionsLabel ?? 'actions').toUpperCase() : 'LOAD')
+          : (held < 90 ? 'FADED ${(100 - held).round()}%' : 'HELD UP'),
+      line2: s == null ? 'Tap + to start' : '${s.duration.inMinutes} min',
+      onTap: s == null
+          ? null
+          : () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SessionReportScreen(session: s, controller: controller),
+              ),
+            ),
+    );
+  }
+}
+
+class _SensorTile extends StatelessWidget {
+  const _SensorTile({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    final link = c.sensor;
+    final (color, _) = _sensorStatus(c);
+    final peak = c.sensorPeakG;
+    final lost = link?.decoder.lostPct ?? 0;
+    return _Tile(
+      title: 'SENSOR',
+      badge: Icon(
+        link == null ? Icons.sensors_off_rounded : Icons.sensors_rounded,
+        color: color == AppColors.textFaint ? AppColors.accent : color,
+        size: 22,
+      ),
+      badgeColor: color == AppColors.textFaint ? AppColors.accent : color,
+      line1: link == null
+          ? 'CONNECT'
+          : c.sensorLive
+          ? (lost >= 5 ? 'SIGNAL WEAK' : 'GOOD SIGNAL')
+          : (link.state == SensorState.lost ? 'OUT OF RANGE' : 'CONNECTING'),
+      line2: link == null ? 'Tap to pair' : (peak == null ? link.sensor.name : 'Peak ${peak.toStringAsFixed(1)} g'),
+      onTap: () => link == null
+          ? _pickSensor(context, c)
+          : showModalBottomSheet<void>(
+              context: context,
+              showDragHandle: true,
+              builder: (_) => _SensorSheet(controller: c),
+            ),
+    );
+  }
+}
+
+/// The coach's one-line outlook for today, as a banner.
+class _Outlook extends StatelessWidget {
+  const _Outlook({required this.advice, required this.onTap});
 
   final Advice advice;
-  final VoidCallback onMore;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -171,39 +531,231 @@ class _Insight extends StatelessWidget {
       AdviceLevel.warn => AppColors.warning,
     };
     return Material(
-      color: AppColors.surface,
       borderRadius: BorderRadius.circular(18),
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onMore,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(advice.title, style: AppText.body.copyWith(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text(advice.detail, style: AppText.dim, maxLines: 2, overflow: TextOverflow.ellipsis),
-                  ],
+      child: Ink(
+        decoration: BoxDecoration(gradient: LinearGradient(colors: [color.withValues(alpha: 0.32), AppColors.surface])),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 12, 16),
+            child: Row(
+              children: [
+                const Icon(Icons.auto_awesome_rounded, color: AppColors.text, size: 24),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Coach's outlook", style: AppText.body.copyWith(fontSize: 17, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(advice.title, style: AppText.dim, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.forum_outlined, size: 20, color: AppColors.textDim),
-            ],
+                const Icon(Icons.chevron_right_rounded, color: AppColors.text),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Today's sessions as rows with a coloured block (like a wearable's activity list), and Start.
+class _TodaySessions extends StatelessWidget {
+  const _TodaySessions({required this.controller, required this.sessions});
+
+  final AppController controller;
+  final List<LocalSession> sessions;
+
+  @override
+  Widget build(BuildContext context) {
+    String hm(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 4),
+            child: Text("TODAY'S SESSIONS", style: AppText.section),
+          ),
+          const SizedBox(height: 14),
+          for (final s in sessions) ...[
+            Material(
+              color: AppColors.surfaceHigh,
+              borderRadius: BorderRadius.circular(14),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => SessionReportScreen(session: s, controller: controller),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 96,
+                        height: 48,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.load.withValues(alpha: 0.75),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          s.summary?.actions != null
+                              ? '${s.summary!.actions}'
+                              : (s.summary?.load.toStringAsFixed(1) ?? '—'),
+                          style: AppText.stat,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Text(
+                          prettySlug(s.sport).toUpperCase(),
+                          style: AppText.section,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(s.startedAt == null ? '' : hm(s.startedAt!), style: AppText.dim),
+                          Text('${s.duration.inMinutes} min', style: AppText.dim),
+                        ],
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.surfaceHigh, foregroundColor: AppColors.text),
+              onPressed: () => _showStartSheet(context, controller),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('START SESSION', style: TextStyle(letterSpacing: 1.6)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// This week as seven days with a tick for each day trained.
+class _WeekChecks extends StatelessWidget {
+  const _WeekChecks({required this.controller});
+
+  final AppController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final days = controller.trends.days;
+    final week = days.sublist(days.length - 7);
+    const names = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    return AppCard(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => TrendsScreen(trends: controller.trends, onAskCoach: () => openCoach(context, controller)),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(18, 18, 14, 18),
+      child: Column(
+        children: [
+          const Row(
+            children: [
+              Expanded(child: Text('THIS WEEK', style: AppText.section)),
+              Icon(Icons.chevron_right_rounded, color: AppColors.textDim),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              for (var i = 0; i < 7; i++)
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        names[week[i].day.weekday - 1],
+                        style: AppText.label.copyWith(color: i == 6 ? AppColors.text : AppColors.textDim),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: week[i].sessions > 0 ? AppColors.good : AppColors.surfaceHigh,
+                          border: week[i].sessions > 0 ? null : Border.all(color: AppColors.outline, width: 1.5),
+                        ),
+                        child: week[i].sessions > 0
+                            ? const Icon(Icons.check_rounded, size: 20, color: AppColors.background)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sport, type and placement, then Start: opened from + so the screen stays short.
+void _showStartSheet(BuildContext context, AppController c) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheet) => ListenableBuilder(
+      listenable: c,
+      builder: (sheet, _) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('NEW SESSION', style: AppText.section),
+              const SizedBox(height: 16),
+              _SetupChips(controller: c),
+              if (c.sensor == null) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'No sensor connected: the phone\'s motion is recorded instead.',
+                  style: AppText.dim,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+              const SizedBox(height: 18),
+              SizedBox(
+                height: 58,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(sheet);
+                    c.startSession();
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded, size: 28),
+                  label: const Text('Start session'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 // ---- sensor ---------------------------------------------------------------------------------------------
@@ -221,73 +773,6 @@ class _Insight extends StatelessWidget {
 Future<void> _pickSensor(BuildContext context, AppController c) async {
   final picked = await showSensorPicker(context, title: 'Connect a sensor', scan: c.scanSensors);
   if (picked != null) await c.connectSensor(picked);
-}
-
-/// Small status chip in the header; tap for the sensor's live signal, or to connect one.
-class _SensorChip extends StatelessWidget {
-  const _SensorChip({required this.controller});
-
-  final AppController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final (color, text) = _sensorStatus(controller);
-    return StatusPill(
-      color: color,
-      text: text,
-      onTap: () => controller.sensor == null
-          ? _pickSensor(context, controller)
-          : showModalBottomSheet<void>(
-              context: context,
-              showDragHandle: true,
-              builder: (_) => _SensorSheet(controller: controller),
-            ),
-    );
-  }
-}
-
-class _ConnectSensorRow extends StatelessWidget {
-  const _ConnectSensorRow({required this.controller});
-
-  final AppController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final error = controller.bluetoothError;
-    return AppCard(
-      onTap: () => _pickSensor(context, controller),
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.15), shape: BoxShape.circle),
-            child: const Icon(Icons.sensors_rounded, color: AppColors.accent, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Connect your sensor', style: AppText.body),
-                Text(
-                  error ?? 'Strap it above the ankle, arrow to the foot',
-                  style: error == null ? AppText.dim : AppText.dim.copyWith(color: AppColors.danger),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          if (error != null)
-            const TextButton(onPressed: openAppSettings, child: Text('Settings'))
-          else
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textFaint),
-        ],
-      ),
-    );
-  }
 }
 
 /// The sensor's live signal and controls, in a bottom sheet.
@@ -463,54 +948,6 @@ class _SetupChips extends StatelessWidget {
           () => _pick(context, 'Sensor on', placementOptions, c.placement, (v) => c.updateSetup(placement: v)),
         ),
       ],
-    );
-  }
-}
-
-class _LastSessionRow extends StatelessWidget {
-  const _LastSessionRow({required this.controller, required this.session});
-
-  final AppController controller;
-  final LocalSession session;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = session;
-    final sum = s.summary;
-    final t = s.startedAt;
-    final when = t == null
-        ? ''
-        : '${_weekdays[t.weekday - 1].substring(0, 3)} ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-    final first = sum?.firstActionG, lastG = sum?.lastActionG;
-    final facts = [
-      '${s.duration.inMinutes} min',
-      if (sum?.actions != null) '${sum!.actions} ${sum.actionsLabel ?? 'actions'}',
-      if (first != null && lastG != null && first > 0)
-        'landing ${lastG >= first ? '+' : '−'}${((lastG / first - 1) * 100).abs().round()}%',
-      if (sum != null && sum.actions == null) 'load ${sum.load.toStringAsFixed(0)}',
-    ].join(' · ');
-    return AppCard(
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => SessionReportScreen(session: s, controller: controller),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('${prettySlug(s.sport)} · $when', style: AppText.body),
-                const SizedBox(height: 2),
-                Text(facts, style: AppText.dim, maxLines: 1, overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.textFaint),
-        ],
-      ),
     );
   }
 }
