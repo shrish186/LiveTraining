@@ -15,6 +15,8 @@ import 'sensor_picker.dart';
 import 'session_report_screen.dart';
 import 'trends_screen.dart';
 
+String _capital(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
 String _clock(Duration d) {
   String two(int n) => n.toString().padLeft(2, '0');
   final h = d.inHours;
@@ -64,14 +66,14 @@ class _TodayView extends StatelessWidget {
         ),
       ),
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
         children: [
-          _TopBar(controller: c),
+          _Header(controller: c),
           const SizedBox(height: 14),
-          _StatusStrip(controller: c),
-          const SizedBox(height: 26),
-          _ThreeRings(controller: c),
-          const SizedBox(height: 26),
+          _StatusLine(controller: c),
+          const SizedBox(height: 16),
+          _ReadinessCard(controller: c),
+          const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
@@ -82,23 +84,7 @@ class _TodayView extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 30),
-          Row(
-            children: [
-              Expanded(child: Text('My Day', style: AppText.title.copyWith(fontSize: 26))),
-              Material(
-                color: AppColors.text,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () => _showStartSheet(context, c),
-                  child: const SizedBox.square(
-                    dimension: 48,
-                    child: Icon(Icons.add_rounded, color: AppColors.background, size: 30),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          Text('My day', style: AppText.title.copyWith(fontSize: 24)),
           const SizedBox(height: 14),
           if (advice.isNotEmpty) ...[
             _Outlook(advice: advice.first, onTap: () => openCoach(context, c)),
@@ -132,80 +118,64 @@ bool _isToday(DateTime? t) {
   return t.year == n.year && t.month == n.month && t.day == n.day;
 }
 
-/// Streak, TODAY, and the sensor at a glance.
-class _TopBar extends StatelessWidget {
-  const _TopBar({required this.controller});
+/// "Today", the date, the training streak and the coach.
+class _Header extends StatelessWidget {
+  const _Header({required this.controller});
 
   final AppController controller;
 
   @override
   Widget build(BuildContext context) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June', //
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    final now = DateTime.now();
     final streak = controller.streakDays;
-    final (color, _) = _sensorStatus(controller);
     return Row(
       children: [
-        Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(20)),
-          child: Row(
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.local_fire_department_rounded,
-                size: 20,
-                color: streak > 0 ? AppColors.warning : AppColors.textFaint,
-              ),
-              const SizedBox(width: 6),
-              Text('$streak', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+              Text('Today', style: AppText.title.copyWith(fontSize: 32)),
+              Text('${days[now.weekday - 1]} ${now.day} ${months[now.month - 1]}', style: AppText.dim),
             ],
           ),
         ),
-        const Spacer(),
-        Container(
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 26),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(20)),
-          child: const Text('TODAY', style: AppText.section),
-        ),
-        const Spacer(),
-        InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () => controller.sensor == null
-              ? _pickSensor(context, controller)
-              : showModalBottomSheet<void>(
-                  context: context,
-                  showDragHandle: true,
-                  builder: (_) => _SensorSheet(controller: controller),
-                ),
-          child: SizedBox(
-            height: 40,
-            width: 52,
-            child: Stack(
-              alignment: Alignment.center,
+        Tooltip(
+          message: '$streak day${streak == 1 ? '' : 's'} in a row',
+          child: Container(
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: streak > 0 ? AppColors.brand.withValues(alpha: 0.14) : AppColors.surface,
+              borderRadius: BorderRadius.circular(19),
+            ),
+            child: Row(
               children: [
-                const Icon(Icons.sensors_rounded, size: 28, color: AppColors.textDim),
-                Positioned(
-                  right: 10,
-                  top: 6,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ),
-                ),
+                Icon(Icons.bolt_rounded, size: 20, color: streak > 0 ? AppColors.brand : AppColors.textFaint),
+                const SizedBox(width: 4),
+                Text('$streak', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
               ],
             ),
           ),
+        ),
+        const SizedBox(width: 4),
+        IconButton(
+          tooltip: 'Ask the coach',
+          onPressed: () => openCoach(context, controller),
+          icon: const Icon(Icons.auto_awesome_rounded, color: AppColors.textDim),
         ),
       ],
     );
   }
 }
 
-/// One dark strip: is the sensor streaming? (the "data caught up" line of a wearable app)
-class _StatusStrip extends StatelessWidget {
-  const _StatusStrip({required this.controller});
+/// One slim line: is the sensor streaming? Tap to connect, or to see its signal.
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.controller});
 
   final AppController controller;
 
@@ -213,41 +183,55 @@ class _StatusStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller;
     final link = c.sensor;
-    final (color, _) = _sensorStatus(c);
     final blocked = link == null && c.bluetoothError != null;
-    final (icon, left, right) = blocked
-        ? (Icons.bluetooth_disabled_rounded, 'BLUETOOTH NOT ALLOWED', 'SETTINGS')
+    final (Color color, String text, String? action) = blocked
+        ? (AppColors.danger, 'Bluetooth not allowed', 'Settings')
         : link == null
-        ? (Icons.sensors_off_rounded, 'NO SENSOR CONNECTED', 'CONNECT')
+        ? (AppColors.textFaint, 'No sensor connected', 'Connect')
         : link.state == SensorState.live && c.sensorLive
-        ? (Icons.sensors_rounded, 'SENSOR STREAMING', '${c.sensorRateHz.round()} HZ')
+        ? (AppColors.good, 'Sensor streaming · ${c.sensorRateHz.round()} Hz', null)
         : link.state == SensorState.lost
-        ? (Icons.sensors_off_rounded, 'SENSOR OUT OF RANGE', 'RECONNECTING')
-        : (Icons.sensors_rounded, 'CONNECTING TO SENSOR', link.sensor.name);
+        ? (AppColors.danger, 'Sensor out of range · reconnecting', null)
+        : (AppColors.warning, 'Connecting to ${link.sensor.name}…', null);
     return Material(
-      color: const Color(0xFF111418),
-      borderRadius: BorderRadius.circular(18),
+      color: AppColors.surface,
+      shape: StadiumBorder(side: BorderSide(color: color.withValues(alpha: 0.5))),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: blocked ? openAppSettings : (link == null ? () => _pickSensor(context, c) : null),
+        onTap: blocked
+            ? openAppSettings
+            : link == null
+            ? () => _pickSensor(context, c)
+            : () => showModalBottomSheet<void>(
+                context: context,
+                showDragHandle: true,
+                builder: (_) => _SensorSheet(controller: c),
+              ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           child: Row(
             children: [
-              Icon(icon, size: 22, color: AppColors.textDim),
-              const SizedBox(width: 12),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  left,
-                  style: AppText.section.copyWith(fontSize: 12.5),
+                  text,
+                  style: AppText.body.copyWith(fontSize: 14),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Text(
-                right,
-                style: AppText.label.copyWith(color: color == AppColors.textFaint ? AppColors.accent : color),
-              ),
+              if (action != null)
+                Text(
+                  action,
+                  style: AppText.body.copyWith(fontSize: 14, color: AppColors.brand, fontWeight: FontWeight.w700),
+                )
+              else
+                const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.textFaint),
             ],
           ),
         ),
@@ -256,111 +240,78 @@ class _StatusStrip extends StatelessWidget {
   }
 }
 
-/// Readiness, load today, and the week: three compact rings with a label and a chevron.
-class _ThreeRings extends StatelessWidget {
-  const _ThreeRings({required this.controller});
+/// The hero: readiness on a half arc (the tick marks your usual start), then today's load and the week as
+/// meters against your usual.
+class _ReadinessCard extends StatelessWidget {
+  const _ReadinessCard({required this.controller});
 
   final AppController controller;
 
-  void _openTrends(BuildContext context) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => TrendsScreen(trends: controller.trends, onAskCoach: () => openCoach(context, controller)),
-    ),
-  );
-
   @override
   Widget build(BuildContext context) {
-    final r = controller.readinessPct;
-    final load = controller.todayLoadPct;
-    final week = controller.weekLoadPct;
-    final rColor = r == null ? AppColors.textFaint : (r < 92 ? AppColors.warning : AppColors.good);
-    String pct(double v) => v > 300 ? '300+' : '${v.round()}';
-    return Row(
-      children: [
-        Expanded(
-          child: _MiniRing(
-            label: 'READINESS',
-            value: r == null ? null : (r / 120).clamp(0.0, 1.0),
-            color: rColor,
-            number: r == null ? '—' : pct(r),
-            unit: r == null ? null : '%',
-            onTap: () => _openTrends(context),
-          ),
+    final c = controller;
+    final r = c.readinessPct;
+    final load = c.todayLoadPct;
+    final week = c.weekLoadPct;
+    final word = r == null
+        ? 'Measured from your first over, after 3 sessions'
+        : r < 92
+        ? 'Softer start than usual: ease in'
+        : r > 105
+        ? 'Sharper than usual: a good day to push'
+        : 'Normal for you';
+    String pct(double v) => v > 300 ? '300+%' : '${v.round()}%';
+    return AppCard(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => TrendsScreen(trends: c.trends, onAskCoach: () => openCoach(context, c)),
         ),
-        Expanded(
-          child: _MiniRing(
-            label: 'LOAD',
-            value: load == null ? (controller.today.load > 0 ? 1.0 : 0.0) : (load / 150).clamp(0.0, 1.0),
-            color: AppColors.load,
-            number: load == null ? controller.today.load.toStringAsFixed(0) : pct(load),
-            unit: load == null ? null : '%',
-            onTap: () => _openTrends(context),
-          ),
-        ),
-        Expanded(
-          child: _MiniRing(
-            label: 'WEEK',
-            value: week == null ? null : (week / 150).clamp(0.0, 1.0),
-            color: week == null ? AppColors.textFaint : (week > 130 ? AppColors.warning : AppColors.accent),
-            number: week == null ? '—' : pct(week),
-            unit: week == null ? null : '%',
-            onTap: () => _openTrends(context),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MiniRing extends StatelessWidget {
-  const _MiniRing({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.number,
-    required this.onTap,
-    this.unit,
-  });
-
-  final String label;
-  final double? value;
-  final Color color;
-  final String number;
-  final String? unit;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 14),
       child: Column(
         children: [
-          RingGauge(
-            value: value,
-            color: color,
-            size: 104,
-            thickness: 8,
-            child: Row(
+          ArcGauge(
+            value: r == null ? 0 : r / 120,
+            marker: 100 / 120,
+            colors: r != null && r < 92
+                ? const [AppColors.warning, AppColors.warning]
+                : const [Color(0xFF6FE3B4), AppColors.brand],
+            child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(number, style: AppText.big.copyWith(fontSize: 30)),
-                if (unit != null) Text(unit!, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(r == null ? '—' : '${r.round()}', style: AppText.hero.copyWith(fontSize: 58)),
+                    if (r != null) Text('%', style: AppText.stat.copyWith(color: AppColors.textDim)),
+                  ],
+                ),
+                Text('Readiness', style: AppText.body.copyWith(fontWeight: FontWeight.w600)),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(label, style: AppText.section.copyWith(fontSize: 12.5)),
-                const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textDim),
-              ],
-            ),
+          Text(word, style: AppText.dim, textAlign: TextAlign.center),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: AppColors.outline),
+          const SizedBox(height: 10),
+          Meter(
+            label: 'Load today',
+            valueText: load == null ? c.today.load.toStringAsFixed(0) : pct(load),
+            value: load == null ? (c.today.load > 0 ? 1 : 0) : load / 150,
+            marker: load == null ? null : 100 / 150,
+            color: AppColors.load,
+            caption: load == null ? 'usual day after 2 weeks' : 'of your usual day',
+          ),
+          const SizedBox(height: 4),
+          Meter(
+            label: 'This week',
+            valueText: week == null ? '—' : pct(week),
+            value: week == null ? 0 : week / 150,
+            marker: week == null ? null : 100 / 150,
+            color: week != null && week > 130 ? AppColors.warning : AppColors.accent,
+            caption: week == null ? 'after 3 weeks' : 'of your usual week',
           ),
         ],
       ),
@@ -399,7 +350,7 @@ class _Tile extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: AppText.section.copyWith(fontSize: 12.5),
+                  style: AppText.section.copyWith(fontSize: 15),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -427,7 +378,7 @@ class _Tile extends StatelessWidget {
                   children: [
                     Text(
                       line1,
-                      style: AppText.label.copyWith(color: badgeColor, fontWeight: FontWeight.w700),
+                      style: AppText.body.copyWith(fontSize: 14, color: badgeColor, fontWeight: FontWeight.w700),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -459,17 +410,17 @@ class _LastSessionTile extends StatelessWidget {
     final color = held == null ? AppColors.accent : (held < 90 ? AppColors.warning : AppColors.good);
     final big = sum?.actions != null ? '${sum!.actions}' : (sum == null ? '—' : sum.load.toStringAsFixed(0));
     return _Tile(
-      title: 'LAST SESSION',
+      title: 'Last session',
       badge: Text(
         big,
         style: AppText.body.copyWith(fontWeight: FontWeight.w800, color: color),
       ),
       badgeColor: color,
       line1: s == null
-          ? 'NONE YET'
+          ? 'None yet'
           : held == null
-          ? (sum?.actions != null ? (sum!.actionsLabel ?? 'actions').toUpperCase() : 'LOAD')
-          : (held < 90 ? 'FADED ${(100 - held).round()}%' : 'HELD UP'),
+          ? (sum?.actions != null ? _capital(sum!.actionsLabel ?? 'actions') : 'Load')
+          : (held < 90 ? 'Faded ${(100 - held).round()}%' : 'Held up'),
       line2: s == null ? 'Tap + to start' : '${s.duration.inMinutes} min',
       onTap: s == null
           ? null
@@ -495,7 +446,7 @@ class _SensorTile extends StatelessWidget {
     final peak = c.sensorPeakG;
     final lost = link?.decoder.lostPct ?? 0;
     return _Tile(
-      title: 'SENSOR',
+      title: 'Sensor',
       badge: Icon(
         link == null ? Icons.sensors_off_rounded : Icons.sensors_rounded,
         color: color == AppColors.textFaint ? AppColors.accent : color,
@@ -503,10 +454,10 @@ class _SensorTile extends StatelessWidget {
       ),
       badgeColor: color == AppColors.textFaint ? AppColors.accent : color,
       line1: link == null
-          ? 'CONNECT'
+          ? 'Connect'
           : c.sensorLive
-          ? (lost >= 5 ? 'SIGNAL WEAK' : 'GOOD SIGNAL')
-          : (link.state == SensorState.lost ? 'OUT OF RANGE' : 'CONNECTING'),
+          ? (lost >= 5 ? 'Weak signal' : 'Good signal')
+          : (link.state == SensorState.lost ? 'Out of range' : 'Connecting'),
       line2: link == null ? 'Tap to pair' : (peak == null ? link.sensor.name : 'Peak ${peak.toStringAsFixed(1)} g'),
       onTap: () => link == null
           ? _pickSensor(context, c)
@@ -583,7 +534,7 @@ class _TodaySessions extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.only(left: 4),
-            child: Text("TODAY'S SESSIONS", style: AppText.section),
+            child: Text("Today's sessions", style: AppText.section),
           ),
           const SizedBox(height: 14),
           for (final s in sessions) ...[
@@ -619,7 +570,7 @@ class _TodaySessions extends StatelessWidget {
                       const SizedBox(width: 14),
                       Expanded(
                         child: Text(
-                          prettySlug(s.sport).toUpperCase(),
+                          prettySlug(s.sport),
                           style: AppText.section,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -644,9 +595,9 @@ class _TodaySessions extends StatelessWidget {
             width: double.infinity,
             child: FilledButton.tonalIcon(
               style: FilledButton.styleFrom(backgroundColor: AppColors.surfaceHigh, foregroundColor: AppColors.text),
-              onPressed: () => _showStartSheet(context, controller),
+              onPressed: () => showStartSheet(context, controller),
               icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('START SESSION', style: TextStyle(letterSpacing: 1.6)),
+              label: const Text('Start session'),
             ),
           ),
         ],
@@ -677,7 +628,7 @@ class _WeekChecks extends StatelessWidget {
         children: [
           const Row(
             children: [
-              Expanded(child: Text('THIS WEEK', style: AppText.section)),
+              Expanded(child: Text('This week', style: AppText.section)),
               Icon(Icons.chevron_right_rounded, color: AppColors.textDim),
             ],
           ),
@@ -697,12 +648,12 @@ class _WeekChecks extends StatelessWidget {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: week[i].sessions > 0 ? AppColors.good : AppColors.surfaceHigh,
+                          borderRadius: BorderRadius.circular(10),
+                          color: week[i].sessions > 0 ? AppColors.brand : AppColors.surfaceHigh,
                           border: week[i].sessions > 0 ? null : Border.all(color: AppColors.outline, width: 1.5),
                         ),
                         child: week[i].sessions > 0
-                            ? const Icon(Icons.check_rounded, size: 20, color: AppColors.background)
+                            ? const Icon(Icons.bolt_rounded, size: 20, color: AppColors.onBrand)
                             : null,
                       ),
                     ],
@@ -717,7 +668,7 @@ class _WeekChecks extends StatelessWidget {
 }
 
 /// Sport, type and placement, then Start: opened from + so the screen stays short.
-void _showStartSheet(BuildContext context, AppController c) {
+void showStartSheet(BuildContext context, AppController c) {
   showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -730,7 +681,7 @@ void _showStartSheet(BuildContext context, AppController c) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('NEW SESSION', style: AppText.section),
+              const Text('New session', style: AppText.title),
               const SizedBox(height: 16),
               _SetupChips(controller: c),
               if (c.sensor == null) ...[
@@ -1013,7 +964,7 @@ class _RecordingView extends StatelessWidget {
     final hasHr = c.stats.hrAvg != null || c.hr.state == HrConnection.connected;
     final (heroValue, heroLabel) = actions != null
         ? ('${actions.actions.length}', actions.cfg.labelPlural.toUpperCase())
-        : (c.stats.load.toStringAsFixed(1), 'LOAD');
+        : (c.stats.load.toStringAsFixed(1), 'Load');
     final small = <(String, String, String?)>[
       if (strikes != null) ('Hardest hit', strikes.hardestG?.toStringAsFixed(1) ?? '—', 'g'),
       if (strikes != null) ('Footstrikes', '${strikes.strikes}', null),

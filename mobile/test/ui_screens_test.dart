@@ -249,10 +249,10 @@ void main() {
     expect(c.sensorLive, isTrue);
     expect(c.settings.sensorId, 'A');
     await _pump(tester, c, 'home_sensor');
-    expect(find.text('SENSOR STREAMING'), findsOneWidget); // the status strip
-    expect(find.text('READINESS'), findsOneWidget);
-    expect(find.text('GOOD SIGNAL'), findsOneWidget); // the sensor tile
-    await tester.tap(find.text('GOOD SIGNAL'));
+    expect(find.textContaining('Sensor streaming'), findsOneWidget); // the status line
+    expect(find.text('Readiness'), findsOneWidget);
+    expect(find.text('Good signal'), findsOneWidget); // the sensor tile
+    await tester.tap(find.text('Good signal'));
     await tester.pumpAndSettle();
     expect(find.text('Forget'), findsOneWidget); // the sensor sheet
     await tester.runAsync(() async {
@@ -500,7 +500,7 @@ void main() {
 
   testWidgets('sessions, with this week', (tester) async {
     await _pump(tester, await _controller(withData: true), 'sessions_week', tab: 1);
-    expect(find.text('This week'.toUpperCase()), findsOneWidget);
+    expect(find.text('This week'), findsOneWidget);
     await tester.longPress(find.text('Soccer · training').first);
     await tester.pumpAndSettle();
     expect(find.text('Share files'), findsOneWidget);

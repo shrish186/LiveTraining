@@ -2,22 +2,26 @@ import 'package:flutter/material.dart';
 
 /// Design tokens. Dark, high-contrast, numbers first: one accent per metric.
 abstract final class AppColors {
-  // Slate, not black: softer on the eyes and lets the cards read as layers.
-  static const background = Color(0xFF1F242A);
-  static const backgroundTop = Color(0xFF2A3037);
-  static const surface = Color(0xFF2B3138);
-  static const surfaceHigh = Color(0xFF363D45);
-  static const outline = Color(0xFF424A53);
-  static const text = Color(0xFFF4F6F8);
-  static const textDim = Color(0xFFA3AAB3);
-  static const textFaint = Color(0xFF6E7680);
+  // Ink blue, not black or grey: our own look. Cards are layers of the same blue, lifted by light.
+  static const background = Color(0xFF0A1019);
+  static const backgroundTop = Color(0xFF13213A);
+  static const surface = Color(0xFF131C2A);
+  static const surfaceHigh = Color(0xFF1B2638);
+  static const outline = Color(0xFF26344A);
+  static const text = Color(0xFFEEF2F8);
+  static const textDim = Color(0xFF93A2B8);
+  static const textFaint = Color(0xFF5E6D84);
 
-  static const accent = Color(0xFF4CC9F0); // primary actions, motion
-  static const heart = Color(0xFFFF4D6D); // heart rate
-  static const load = Color(0xFF9B87F5); // load
-  static const danger = Color(0xFFFF4D5E);
-  static const warning = Color(0xFFF5C542);
-  static const good = Color(0xFF3DDC84);
+  /// Brand: electric lime. The record button, the readiness gauge, primary actions.
+  static const brand = Color(0xFFC6F35E);
+  static const onBrand = Color(0xFF0A1019);
+
+  static const accent = Color(0xFF4CC3FF); // information, motion
+  static const heart = Color(0xFFFF5C8A); // heart rate
+  static const load = Color(0xFF8B7CFF); // load
+  static const danger = Color(0xFFFF5C6C); // alerts
+  static const warning = Color(0xFFFFB547); // caution
+  static const good = Color(0xFF5EE6A8); // fine / held up
 
   /// Recovery bands (high / medium / low).
   static Color recovery(double score) => score >= 67
@@ -38,12 +42,12 @@ abstract final class AppText {
     color: AppColors.textDim,
   );
 
-  /// Card and section titles: bold, white, widely spaced caps (write the text in caps).
+  /// Card and section titles: bold, sentence case.
   static const section = TextStyle(
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: FontWeight.w700,
-    letterSpacing: 2.2,
     color: AppColors.text,
+    letterSpacing: -0.1,
   );
   static const hero = TextStyle(
     fontSize: 64,
@@ -74,9 +78,9 @@ abstract final class AppText {
 }
 
 ThemeData buildTheme() {
-  final scheme = ColorScheme.fromSeed(seedColor: AppColors.accent, brightness: Brightness.dark).copyWith(
-    primary: AppColors.accent,
-    onPrimary: AppColors.background,
+  final scheme = ColorScheme.fromSeed(seedColor: AppColors.brand, brightness: Brightness.dark).copyWith(
+    primary: AppColors.brand,
+    onPrimary: AppColors.onBrand,
     surface: AppColors.surface,
     onSurface: AppColors.text,
     error: AppColors.danger,
@@ -114,7 +118,7 @@ ThemeData buildTheme() {
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+        borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
       ),
     ),
     bottomSheetTheme: const BottomSheetThemeData(

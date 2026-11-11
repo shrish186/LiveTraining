@@ -16,7 +16,10 @@ class AppCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: const BorderSide(color: AppColors.outline, width: 0.6),
+      ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -38,7 +41,7 @@ class SectionLabel extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(text.toUpperCase(), style: AppText.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: Text(text, style: AppText.section, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
         ?trailing,
       ],
@@ -517,6 +520,179 @@ class LabeledRing extends StatelessWidget {
         const SizedBox(height: 4),
         Text(word, style: AppText.dim, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
       ],
+    );
+  }
+}
+
+/// A wide half-circle gauge (our signature hero): track, a gradient arc up to [value] (0-1), a tick at
+/// [marker] (e.g. "your usual"), and [child] in the middle.
+class ArcGauge extends StatelessWidget {
+  const ArcGauge({
+    super.key,
+    required this.value,
+    required this.colors,
+    required this.child,
+    this.marker,
+    this.width = 260,
+    this.thickness = 16,
+  });
+
+  final double? value;
+  final List<Color> colors;
+  final double? marker;
+  final Widget child;
+  final double width;
+  final double thickness;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: width / 2 + thickness,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: (value ?? 0).clamp(0, 1).toDouble()),
+        duration: const Duration(milliseconds: 900),
+        curve: Curves.easeOutCubic,
+        builder: (context, v, _) => CustomPaint(
+          painter: _ArcPainter(v, colors, marker, thickness),
+          child: Align(alignment: const Alignment(0, 0.55), child: child),
+        ),
+      ),
+    );
+  }
+}
+
+class _ArcPainter extends CustomPainter {
+  _ArcPainter(this.value, this.colors, this.marker, this.thickness);
+
+  final double value;
+  final List<Color> colors;
+  final double? marker;
+  final double thickness;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final r = size.width / 2 - thickness / 2;
+    final center = Offset(size.width / 2, r + thickness / 2);
+    final rect = Rect.fromCircle(center: center, radius: r);
+    final track = Paint()
+      ..color = AppColors.surfaceHigh
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = thickness;
+    canvas.drawArc(rect, math.pi, math.pi, false, track);
+    if (value > 0) {
+      final arc = Paint()
+        ..shader = SweepGradient(
+          startAngle: math.pi,
+          endAngle: 2 * math.pi,
+          colors: colors.length == 1 ? [colors.first, colors.first] : colors,
+        ).createShader(rect)
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = thickness;
+      canvas.drawArc(rect, math.pi, math.pi * value, false, arc);
+    }
+    final m = marker;
+    if (m != null) {
+      final a = math.pi + math.pi * m.clamp(0, 1);
+      final inner = center + Offset(math.cos(a), math.sin(a)) * (r - thickness * 0.9);
+      final outer = center + Offset(math.cos(a), math.sin(a)) * (r + thickness * 0.9);
+      canvas.drawLine(
+        inner,
+        outer,
+        Paint()
+          ..color = AppColors.text.withValues(alpha: 0.85)
+          ..strokeWidth = 2.5
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ArcPainter old) => old.value != value || old.marker != marker || old.colors != colors;
+}
+
+/// A labelled horizontal meter: name and value on top, a bar with a tick at [marker] (e.g. 100% = usual).
+class Meter extends StatelessWidget {
+  const Meter({
+    super.key,
+    required this.label,
+    required this.valueText,
+    required this.value,
+    required this.color,
+    this.caption,
+    this.marker,
+    this.onTap,
+  });
+
+  final String label;
+  final String valueText;
+  final double? value; // 0-1 of the bar
+  final Color color;
+  final String? caption;
+  final double? marker;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Expanded(
+                  child: Text(label, style: AppText.body.copyWith(fontWeight: FontWeight.w600)),
+                ),
+                if (caption != null) ...[
+                  Flexible(
+                    child: Text(caption!, style: AppText.dim, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Text(valueText, style: AppText.stat.copyWith(fontSize: 20, color: color)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LayoutBuilder(
+              builder: (context, box) {
+                final w = box.maxWidth;
+                final m = marker;
+                return SizedBox(
+                  height: 10,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(5)),
+                      ),
+                      FractionallySizedBox(
+                        widthFactor: (value ?? 0).clamp(0.0, 1.0),
+                        child: Container(
+                          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(5)),
+                        ),
+                      ),
+                      if (m != null)
+                        Positioned(
+                          left: (w * m.clamp(0.0, 1.0)) - 1,
+                          top: -3,
+                          child: Container(width: 2, height: 16, color: AppColors.text.withValues(alpha: 0.8)),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
