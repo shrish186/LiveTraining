@@ -28,6 +28,9 @@ import 'package:live_training/sources/motion_source.dart';
 import 'package:live_training/sources/whoop_hr_source.dart';
 import 'package:live_training/ui/theme.dart';
 import 'package:live_training/screens/squad_screen.dart';
+import 'package:live_training/screens/trends_screen.dart';
+import 'package:live_training/util/day_summary.dart';
+import 'package:live_training/util/trends.dart';
 import 'package:live_training/sources/sensor_link.dart';
 import 'package:live_training/squad/squad_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -318,6 +321,59 @@ void main() {
 
   testWidgets('sessions, empty', (tester) async {
     await _pump(tester, await _controller(withData: false), 'sessions', tab: 1);
+  });
+
+  testWidgets('sessions, with this week', (tester) async {
+    await _pump(tester, await _controller(withData: true), 'sessions_week', tab: 1);
+    expect(find.text('This week'.toUpperCase()), findsOneWidget);
+  });
+
+  testWidgets('trends', (tester) async {
+    final now = DateTime.now();
+    final entries = [
+      for (var d = 0; d < 28; d++)
+        if (d % 7 != 2 && d % 7 != 5)
+          DayEntry(
+            startedAt: DateTime(now.year, now.month, now.day - d, 17),
+            duration: const Duration(minutes: 70),
+            sport: 'cricket',
+            summary: SessionSummary(
+              load: 14 + 6 * math.sin(d / 3).abs() + (d < 7 ? 14 : 0),
+              efforts: 6,
+              fatigueEfforts: d == 1 ? 1 : 0,
+              impactLoad: 4000 + 100.0 * d,
+              actions: 30 + d % 4 * 6,
+              actionsLabel: 'deliveries',
+            ),
+          ),
+    ];
+    tester.view.physicalSize = const Size(1170, 2532 * 1.4);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          theme: buildTheme(),
+          debugShowCheckedModeBanner: false,
+          home: TrendsScreen(trends: Trends.of(entries, now)),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
+    expect(find.text('DELIVERIES'), findsOneWidget);
+    expect(find.textContaining('above your 4-week average'), findsOneWidget);
+    final dir = _previewDir;
+    if (dir != null) {
+      await tester.runAsync(() async {
+        final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$dir/trends.png').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
   });
 
   testWidgets('settings', (tester) async {

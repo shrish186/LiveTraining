@@ -19,6 +19,7 @@ import 'sources/phone_motion_source.dart';
 import 'sources/watch_motion_source.dart';
 import 'sources/whoop_hr_source.dart';
 import 'util/day_summary.dart';
+import 'util/trends.dart';
 import 'util/live_stats.dart';
 import 'util/motion.dart';
 
@@ -83,6 +84,9 @@ class AppController extends ChangeNotifier {
   // Today card: WHOOP day strain plus our sessions of the day
   DayStrain? dayStrain;
   DaySummary get today => DaySummary.of(sessions.map((s) => s.dayEntry).whereType<DayEntry>(), DateTime.now());
+
+  /// The last 4 weeks, for the Sessions tab's week card and the Trends screen.
+  Trends get trends => Trends.of(sessions.map((s) => s.dayEntry).whereType<DayEntry>(), DateTime.now());
 
   // Recording
   SessionRecorder? recorder;

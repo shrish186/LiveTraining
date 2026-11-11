@@ -5,6 +5,7 @@ import '../services/session_store.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'session_report_screen.dart';
+import 'trends_screen.dart';
 
 const _months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -29,6 +30,7 @@ class SessionsScreen extends StatelessWidget {
                 overline: sessions.isEmpty ? 'History' : '${sessions.length} recorded · $uploaded uploaded',
                 title: 'Sessions',
               ),
+              if (sessions.isNotEmpty) ...[WeekCard(trends: controller.trends), const SizedBox(height: 16)],
               if (sessions.isEmpty)
                 const AppCard(
                   child: Column(
