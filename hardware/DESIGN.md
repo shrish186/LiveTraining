@@ -19,6 +19,9 @@ before the design is frozen.
 | **Fatigue on the load-bearing leg** (drift across a spell) | all of the above, per delivery | consistent mounting + per-unit calibration |
 | Live calls during the session | decimated stream | ~100 Hz to the phone, < 1 s latency |
 | Multi-player sessions | many sensors → one phone | 6 sensors on one phone, synchronised to ≤ 5 ms |
+| **Muscle fatigue (EMG)** | surface EMG, calf (gastrocnemius) or shin muscle (tibialis anterior) | 1 channel, 20–450 Hz band, **≥ 1 kHz** (2 kHz preferred) |
+| Drift-free shank orientation | 3-axis magnetometer | 50–100 Hz |
+| Worn / not worn, fast player assignment, buzz on the leg | on-skin detection, NFC tag, vibration motor | |
 
 Placement: lateral shank, just above the ankle bone, on the **front (landing) leg**. An optional second unit on the
 back leg gives back-foot contact and left/right comparison.
@@ -26,12 +29,21 @@ back leg gives back-foot contact and left/right comparison.
 ## 2. Block diagram
 
 ```
- LiPo 250 mAh ──► charger ──► 3.3 V LDO ──┬─► nRF52840 module (BLE 5, USB, MCU)
-   (with PCM)      ▲                       ├─► LSM6DSV320X  (6-axis ±16 g + high-g ±320 g)  ── SPI + 2 INT
-                   │                       ├─► SPI NOR flash 1 Gbit (128 MB)               ── SPI (or QSPI)
- USB-C ────────────┘ (5 V in, USB data to nRF)├─► RGB LED, button
-                                           └─► battery sense (divider + switch to ADC)
- SWD (Tag-Connect TC2030 footprint) ─► nRF52840
+ USB-C (5 V + USB data) ──► charger ──► LiPo 250 mAh (with protection)
+                                  │
+                                  ▼
+                              3.3 V LDO
+                                  │
+   ┌──────────────────────────────┼──────────────────────────────────────────────┐
+   ▼                              ▼                                              ▼
+ nRF52840 module           LSM6DSV320X (±16 g + ±320 g + gyro) ── SPI + 2 INT   SPI NOR flash 2 Gbit ── SPI/QSPI
+ (BLE 5, USB, MCU)         LIS2MDL magnetometer ─────────────── I2C/SPI
+   │                       EMG front end (ADS1292R or analog AFE) ── SPI + DRDY
+   │                          └─ 3 electrodes (2 sensing + reference) on the strap's inner face
+   ├─► RGB LED, button, vibration motor (MOSFET), capacitive on-skin pad
+   ├─► battery sense (divider + switch to ADC), charger status
+   └─► SWD (Tag-Connect TC2030 footprint)
+ Passive NFC tag in the case (no wiring): tap a phone to assign the sensor to a player
 ```
 
 ## 3. Parts (first pick + alternatives)
@@ -40,13 +52,19 @@ back leg gives back-foot contact and left/right comparison.
 |---|---|---|---|
 | Radio + MCU | **Pre-certified nRF52840 module** (e.g. Raytac MDBT50Q, Fanstel BT840, u-blox NINA-B3) [verify current certs] | nRF54L15 module (newer, lower power) | Native USB, mature SDK, multi-connection BLE. A **module with FCC/IC/CE grants** removes most radio certification cost |
 | IMU | **ST LSM6DSV320X** [verify ranges/ODR/package] | LSM6DSV16X + separate high-g ADXL375 / H3LIS331DL | One package with a low-g ±16 g channel **and** a high-g ±320 g channel, gyro, FIFO, timestamps. Exactly the impact problem we have |
-| Storage | 1 Gbit SPI NOR (e.g. Winbond W25Q01JV) [verify] | 2 Gbit NAND (needs bad-block handling) | ~4 h of raw data per charge (budget in §5); NOR is simpler and robust |
+| Storage | **2 Gbit** SPI NOR [verify availability; else 1 Gbit W25Q01JV] | 2 Gbit NAND (needs bad-block handling) | ~3 h of raw data incl. EMG (budget in §5); NOR is simpler and robust |
 | Charger | TI BQ25180 or MCP73831 [verify] | BQ21080 | Single-cell LiPo, ~100–200 mA charge, small |
 | 3.3 V regulator | TPS7A02 (very low Iq) [verify] | nRF52840 internal REG0 (VDDH mode) if peak current fits | Flash write peaks can exceed what REG0 should supply externally |
 | Battery | 502030 LiPo ~250 mAh **with protection circuit** | 402030 ~200 mAh | Certified cells (UN38.3, IEC 62133) save certification work |
 | Connector | USB-C (charging + data) | Pogo pins + dock (for sealed case v2) | USB lets us copy 100+ MB after a session |
 | UI | RGB LED, one button | + small vibration motor (DNP footprint) | Button = start/stop/**mark** (labels for training data). Motor = buzz on the leg for live calls |
 | Debug | Tag-Connect TC2030 pads, UART test pads | | Production programming + debugging |
+| **EMG front end** | **TI ADS1292R** (24-bit biopotential AFE, SPI) [verify] | Analog AFE (instrumentation amp + 20–450 Hz band-pass) into the nRF SAADC; prototype: MyoWare 2.0 raw output [verify] | Raw EMG at 1–2 kHz for frequency analysis (fatigue = median frequency falls, RMS rises) |
+| Electrodes | Snap connectors for **disposable gel electrodes** (v1) | Dry conductive-silicone electrodes in the strap (v2) | Gel gives a clean signal now; dry is the convenient product later |
+| Magnetometer | ST LIS2MDL [verify] | MMC5983MA | Heading for 9-axis fusion; keep away from the motor and battery wiring |
+| On-skin detection | Capacitive pad on the case base | Proximity sensor | Auto-start; flags a loose strap |
+| NFC | Passive NTAG sticker inside the case | nRF52840 NFC-A pins [verify] | Tap phone to sensor = assign to player |
+| Haptics | Small ERM coin motor + MOSFET + flyback diode | LRA + driver | Buzz on the leg for live calls |
 | Protection | ESD diode on USB D+/D-/VBUS, reverse-battery protection | | Field use, sweaty connectors |
 
 ## 4. Net list (for schematic review)
@@ -58,6 +76,9 @@ Pin numbers are left to the layout: assign to module GPIOs that keep traces shor
 | IMU_SCK / MOSI / MISO / CS | nRF SPIM (high-speed instance) ↔ LSM6DSV320X | SPI up to 8–10 MHz [verify]; short traces |
 | IMU_INT1 | IMU → nRF GPIO (interrupt-capable) | FIFO watermark |
 | IMU_INT2 | IMU → nRF GPIO | high-g event / wake-up |
+| MAG_SDA/SCL (or SPI) + MAG_DRDY | nRF ↔ LIS2MDL | separate bus from the IMU if possible |
+| EMG_SCK/MOSI/MISO/CS + EMG_DRDY + EMG_START/RESET | nRF ↔ ADS1292R | electrode inputs IN1P/IN1N + RLD/reference via protection resistors + ESD |
+| CAP_SENSE | base pad → nRF GPIO/comparator | on-skin detection |
 | FLASH_SCK / MOSI / MISO / CS (or QSPI IO0–3) | nRF ↔ NOR flash | QSPI if the module exposes it: faster dumps |
 | USB_DP / USB_DN / VBUS | USB-C ↔ nRF (native USB) + charger | CC1/CC2 5.1 kΩ pull-downs (sink) |
 | CHG_STAT | charger → nRF GPIO | charging state for the LED/app |
@@ -76,9 +97,11 @@ Pin numbers are left to the layout: assign to module GPIOs that keep traces shor
 | Low-g acc + gyro (6 × int16) | 960 Hz | 11.5 kB |
 | High-g acc (3 × int16) | 960 Hz | 5.8 kB |
 | Timestamps + headers | per FIFO batch | ~0.3 kB |
-| **Total** | | **~17.6 kB/s ≈ 63 MB/hour** |
+| EMG (1 ch × 24-bit) | 2 kHz | 6.0 kB |
+| Magnetometer (3 × int16) | 100 Hz | 0.6 kB |
+| **Total** | | **~24 kB/s ≈ 87 MB/hour** |
 
-128 MB flash ≈ 2 hours at full rate. If that's too short: record high-g at full rate only in windows around detected
+256 MB flash ≈ 3 hours at full rate (128 MB would give ~1.5 h with EMG). If that's too short: record high-g at full rate only in windows around detected
 landings (±300 ms), which brings it to ~12 kB/s ≈ 3 hours. **[decide with review]**
 
 **Live stream (BLE notifications):** acc + gyro decimated to 104 Hz (≈ 1.3 kB/s per sensor) **plus** per-landing
@@ -98,6 +121,11 @@ cross-sensor sync ≤ 5 ms. A sync jump at the start remains the check.
 | Flash writes (averaged) | 1–3 mA |
 | LED blips, LDO, leakage | < 0.5 mA |
 | **Total** | **~6–10 mA → 25–40 h on 250 mAh** |
+
+**EMG notes:** electrodes sit on the strap's inner face over the muscle belly, ~2 cm apart, reference over bone.
+Landing impacts cause big motion artefacts: high-pass ≥ 20 Hz, and analyse EMG in windows that exclude ±50 ms around
+each impact (the IMU tells us exactly when). Fatigue features: median/mean power frequency and RMS per delivery,
+compared with the start of the spell. Wellness use only: no medical or diagnostic claims.
 
 ## 6. Mechanical
 
@@ -154,12 +182,45 @@ US first: **FCC Part 15** (with a pre-certified module: mostly unintentional-rad
 UN38.3 / IEC 62133 via certified cells, product liability insurance, COPPA for under-13 players. Then UKCA (England),
 RCM (AU/NZ). Manufacturing in South Asia; check current US import tariffs per country of assembly.
 
-## 11. Questions for the reviewer
+## 11. Cost (estimates, [verify] with real quotes)
+
+**Prototype from dev boards (now):**
+
+| Item | Per unit |
+|---|---|
+| nRF52840 board (e.g. XIAO nRF52840) | $10–15 |
+| LSM6DSV320X breakout/eval board | $15–30 |
+| Magnetometer breakout | $8–10 |
+| EMG board (e.g. MyoWare 2.0) + gel electrodes | $40–45 |
+| Battery, vibration motor, NFC sticker, wiring | $10–15 |
+| Printed case + strap | $5 |
+| **Per prototype** | **≈ $90–120** |
+
+**Custom v1 board (assembled in India):**
+
+| | ~100 units | ~1,000 units |
+|---|---|---|
+| nRF52840 module | $6–9 | $5–7 |
+| LSM6DSV320X | $5–8 | $4–6 |
+| EMG front end (ADS1292R) | $8–12 | $6–9 |
+| Magnetometer, 2 Gbit flash, charger, LDO | $7–11 | $5–8 |
+| Motor, NFC, cap-sense, LED, button, USB-C, passives | $3–5 | $2–3 |
+| PCB (4-layer) + assembly + test | $6–10 | $3–5 |
+| Battery, sealed case, strap with electrode snaps | $8–12 | $5–8 |
+| **Per sensor** | **≈ $45–65** | **≈ $30–45** |
+
+Consumable: gel electrodes ≈ $0.30–0.60 per player per session (v2 dry electrodes remove this).
+
+**One-time to the India trial:** 2–3 board revisions × ~10 boards ($300–800 each) + parts and tools ≈ **$1.5–3k**.
+
+## 12. Questions for the reviewer
 
 1. LSM6DSV320X: confirm both channels can run at ~960 Hz into the FIFO together with the gyro, and SPI bandwidth.
 2. REG0 (VDDH mode) vs external LDO for flash write peaks.
 3. Flash: 1 Gbit NOR vs NAND; QSPI on the chosen module?
 4. 4-layer vs 2-layer for a 25 × 30 mm board with a chip-antenna module (keep-out zone!).
 5. Charger choice and charge current for 250 mAh; thermal limits in a sealed case.
-6. Vibration motor: worth the power and space for live calls on the leg?
+6. Vibration motor: placement so it doesn't disturb the IMU or the magnetometer.
+8. EMG: ADS1292R vs analog AFE + SAADC; input protection and ESD on the electrode lines; electrode lead routing
+   through the strap; motion-artefact rejection (driven reference).
 7. Anything to change so the same board can be assembled in India at low volume (10–100 units).
