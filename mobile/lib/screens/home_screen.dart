@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../app_controller.dart';
+import '../coach/advice.dart';
 import '../coach/live_coach.dart';
 import '../config.dart';
 import '../sources/sensor_link.dart';
@@ -9,6 +10,8 @@ import '../sources/whoop_hr_source.dart';
 import '../util/day_summary.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'advice_card.dart';
+import 'open_coach.dart';
 import 'sensor_picker.dart';
 
 const _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -56,6 +59,21 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 12),
               _TodayCard(controller: controller),
               const SizedBox(height: 12),
+              if (controller.sessions.isNotEmpty) ...[
+                AdviceCard(
+                  title: 'Coach',
+                  advice: adviceForWeek(controller.trends).take(2).toList(),
+                  action: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => openCoach(context, controller),
+                      icon: const Icon(Icons.forum_outlined),
+                      label: const Text('Ask the coach'),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (whoopEnabled) ...[
                 _RecoveryCard(controller: controller, onOpenSettings: onOpenSettings),
                 const SizedBox(height: 12),

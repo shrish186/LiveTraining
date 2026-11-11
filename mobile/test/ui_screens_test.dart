@@ -20,6 +20,7 @@ import 'package:live_training/coach/live_coach.dart';
 import 'package:live_training/coach/profiles.dart';
 import 'package:live_training/recording/session_recorder.dart';
 import 'package:live_training/report/session_report.dart';
+import 'package:live_training/screens/coach_chat_screen.dart';
 import 'package:live_training/screens/session_report_screen.dart';
 import 'package:live_training/services/backend_api.dart';
 import 'package:live_training/services/session_store.dart';
@@ -369,8 +370,9 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
-    expect(find.text('DELIVERIES'), findsNWidgets(2)); // the tile and the card
-    expect(find.textContaining('softer than the first 6'), findsOneWidget);
+    expect(find.text('DELIVERIES'), findsWidgets);
+    expect(find.text('Fatigue building late in the spell'), findsOneWidget); // the advice card
+    await tester.scrollUntilVisible(find.textContaining('softer than the first 6: fatigue'), 300); // the deliveries card
     final dir = _previewDir;
     if (dir != null) {
       await tester.runAsync(() async {
@@ -378,6 +380,42 @@ void main() {
         final image = await boundary.toImage(pixelRatio: 1);
         final png = await image.toByteData(format: ui.ImageByteFormat.png);
         File('$dir/session_report_cricket.png').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
+  });
+
+  testWidgets('coach chat', (tester) async {
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          theme: buildTheme(),
+          debugShowCheckedModeBanner: false,
+          home: CoachChatScreen(
+            title: 'Coach · this session',
+            context: () => {'sport': 'cricket'},
+            ask: (q, ctx, history) async =>
+                'Your first 6 deliveries landed at about 16.8 g; the last 6 at 13.6 g (19% softer), and your run-up '
+                'strides got 60 ms longer from ball 8. That is fatigue building, not technique.\n\n'
+                'Next spell: bowl 7, take a 3-minute break, then bowl the rest. Check whether the landings hold up.',
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('How did my last session go?'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final dir = _previewDir;
+    if (dir != null) {
+      await tester.runAsync(() async {
+        final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$dir/coach_chat.png').writeAsBytesSync(png!.buffer.asUint8List());
       });
     }
   });

@@ -6,6 +6,7 @@ import '../services/session_store.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'session_report_screen.dart';
+import 'open_coach.dart';
 import 'trends_screen.dart';
 
 const _months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -31,7 +32,10 @@ class SessionsScreen extends StatelessWidget {
                 overline: sessions.isEmpty ? 'History' : '${sessions.length} recorded · $uploaded uploaded',
                 title: 'Sessions',
               ),
-              if (sessions.isNotEmpty) ...[WeekCard(trends: controller.trends), const SizedBox(height: 16)],
+              if (sessions.isNotEmpty) ...[
+                WeekCard(trends: controller.trends, onAskCoach: () => openCoach(context, controller)),
+                const SizedBox(height: 16),
+              ],
               if (sessions.isEmpty)
                 const AppCard(
                   child: Column(
@@ -184,8 +188,11 @@ class _SessionTile extends StatelessWidget {
         // Tap a finished session for its report (the Failed pill has its own tap for upload errors).
         onTap: recordingThis
             ? null
-            : () =>
-                  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SessionReportScreen(session: s))),
+            : () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SessionReportScreen(session: s, controller: controller),
+                ),
+              ),
         child: Row(
           children: [
             Container(

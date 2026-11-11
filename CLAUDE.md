@@ -63,6 +63,9 @@ logic and the sport profiles.
 - The product is our leg sensor first. WHOOP recovery/strain/backend UI is behind `whoopEnabled` in `mobile/lib/config.dart`
   (currently false); the code stays. On the Live tab a connected sensor (`AppController.sensor`) owns the coach and the
   session's placement, even while it reconnects; any BLE heart-rate strap is optional.
+- Advice (`mobile/lib/coach/advice.dart`) is rule-based, from the report and trends only (no second analysis path).
+  The AI coach sends `coach_context.dart`'s compact JSON to `POST /coach/ask` (`backend/app/coach_ai.py`, Claude); the
+  API key lives only in `backend/.env`. Both follow the wording rule: no injury prediction, no medical claims.
 - Live calls are written to the session as `call_*` events. Accuracy is checked with
   `analysis/validate_session.py` against the athlete's `mark` events.
 - WHOOP token refresh invalidates the old access and refresh tokens. Always persist the new refresh

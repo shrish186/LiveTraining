@@ -8,10 +8,12 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'coach/coach_context.dart';
 import 'coach/live_coach.dart';
 import 'coach/profiles.dart';
 import 'config.dart';
 import 'recording/session_recorder.dart';
+import 'report/session_report.dart';
 import 'services/backend_api.dart';
 import 'services/session_store.dart';
 import 'services/settings_store.dart';
@@ -493,6 +495,27 @@ class AppController extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  // ---- AI coach ---------------------------------------------------------------
+
+  /// Why the AI coach can't be used yet, or null when it can be tried.
+  String? get coachNotSetUp => settings.backendUrl.isEmpty
+      ? 'Add your server address in Settings › Upload server. The server needs a Claude API key '
+            '(ANTHROPIC_API_KEY in backend/.env); the key stays on the server, never on the phone.'
+      : null;
+
+  /// The athlete's data for the coach: recent sessions, weeks, and one session in detail when asked about it.
+  Map<String, dynamic> coachData({SessionReport? report, DateTime? startedAt}) => coachContext(
+    sport: sport,
+    placement: placement,
+    entries: sessions.map((s) => s.dayEntry).whereType<DayEntry>(),
+    trends: trends,
+    session: report,
+    sessionStartedAt: startedAt,
+  );
+
+  Future<String> askCoach(String question, Map<String, dynamic> context, List<Map<String, String>> history) =>
+      api.askCoach(question, context, history);
 
   /// Deletes a finished session from the phone.
   Future<void> deleteSession(LocalSession s) async {

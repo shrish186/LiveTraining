@@ -2,9 +2,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../coach/advice.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import '../util/trends.dart';
+import 'advice_card.dart';
 
 const _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -27,15 +29,20 @@ String _trendWord(LoadTrend t) => switch (t) {
 
 /// "This week" summary at the top of the Sessions tab; opens [TrendsScreen].
 class WeekCard extends StatelessWidget {
-  const WeekCard({super.key, required this.trends});
+  const WeekCard({super.key, required this.trends, this.onAskCoach});
 
   final Trends trends;
+  final VoidCallback? onAskCoach;
 
   @override
   Widget build(BuildContext context) {
     final w = trends.thisWeek;
     return AppCard(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => TrendsScreen(trends: trends))),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => TrendsScreen(trends: trends, onAskCoach: onAskCoach),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -150,9 +157,10 @@ class _BarsPainter extends CustomPainter {
 
 /// Four weeks of training: daily load, this week against the athlete's own average, weekly totals.
 class TrendsScreen extends StatelessWidget {
-  const TrendsScreen({super.key, required this.trends});
+  const TrendsScreen({super.key, required this.trends, this.onAskCoach});
 
   final Trends trends;
+  final VoidCallback? onAskCoach;
 
   @override
   Widget build(BuildContext context) {
@@ -172,11 +180,29 @@ class TrendsScreen extends StatelessWidget {
       if (label != null)
         StatTile(label: label[0].toUpperCase() + label.substring(1), value: '${w.actions}', color: AppColors.accent),
     ];
+    final advice = adviceForWeek(t);
     return Scaffold(
       appBar: AppBar(title: const Text('Trends')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
+          if (advice.isNotEmpty || onAskCoach != null) ...[
+            AdviceCard(
+              title: 'This week',
+              advice: advice,
+              action: onAskCoach == null
+                  ? null
+                  : SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: onAskCoach,
+                        icon: const Icon(Icons.forum_outlined),
+                        label: const Text('Ask the coach'),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 12),
+          ],
           AppCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

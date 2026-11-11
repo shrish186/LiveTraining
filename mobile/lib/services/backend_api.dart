@@ -113,6 +113,24 @@ class BackendApi {
     _fail(r, '/sessions');
   }
 
+  /// One AI-coach answer about the athlete's data. [context] is built on the phone (coach_context.dart);
+  /// [history] is the conversation so far as {role: user|assistant, content}.
+  Future<String> askCoach(String question, Map<String, dynamic> context, List<Map<String, String>> history) async {
+    const path = '/coach/ask';
+    final uri = _uri(path);
+    final body = jsonEncode({'question': question, 'context': context, 'history': history});
+    final r = await _call(
+      () => _client
+          .post(uri, headers: {'content-type': 'application/json'}, body: body)
+          .timeout(const Duration(seconds: 120)),
+    );
+    if (r.statusCode == 200) return (jsonDecode(r.body) as Map<String, dynamic>)['answer'] as String;
+    final detail = _detail(r);
+    // The server's own messages ("not set up", "busy", "can't answer that") are written for the athlete.
+    if (detail != null && const {422, 502, 503}.contains(r.statusCode)) throw BackendException(detail);
+    _fail(r, path);
+  }
+
   static String? _detail(http.Response r) {
     try {
       final detail = (jsonDecode(r.body) as Map<String, dynamic>)['detail'];

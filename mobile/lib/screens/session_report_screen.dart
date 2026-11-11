@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app_controller.dart';
+import '../coach/advice.dart';
 import '../coach/live_coach.dart';
 import '../report/session_report.dart';
 import '../report/signal_quality.dart';
@@ -11,6 +13,8 @@ import '../services/session_share.dart';
 import '../services/session_store.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'advice_card.dart';
+import 'open_coach.dart';
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -22,9 +26,12 @@ String _mmss(double seconds) {
 
 /// One recorded session, analysed on the phone: timeline, efforts, heart rate, impact, data quality.
 class SessionReportScreen extends StatefulWidget {
-  const SessionReportScreen({super.key, required this.session});
+  const SessionReportScreen({super.key, required this.session, this.controller});
 
   final LocalSession session;
+
+  /// For the AI coach button (null: no button).
+  final AppController? controller;
 
   @override
   State<SessionReportScreen> createState() => _SessionReportScreenState();
@@ -74,7 +81,12 @@ class _SessionReportScreenState extends State<SessionReportScreen> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator(color: AppColors.accent));
           }
-          return SessionReportView(session: widget.session, report: snapshot.data!);
+          final c = widget.controller;
+          return SessionReportView(
+            session: widget.session,
+            report: snapshot.data!,
+            onAskCoach: c == null ? null : () => openCoach(context, c, report: snapshot.data!, session: widget.session),
+          );
         },
       ),
     );
@@ -82,14 +94,16 @@ class _SessionReportScreenState extends State<SessionReportScreen> {
 }
 
 class SessionReportView extends StatelessWidget {
-  const SessionReportView({super.key, required this.session, required this.report});
+  const SessionReportView({super.key, required this.session, required this.report, this.onAskCoach});
 
   final LocalSession session;
   final SessionReport report;
+  final VoidCallback? onAskCoach;
 
   @override
   Widget build(BuildContext context) {
     final r = report;
+    final advice = adviceForSession(r);
     final start = session.startedAt;
     final overline = start == null
         ? 'Session'
@@ -117,6 +131,22 @@ class SessionReportView extends StatelessWidget {
         const SizedBox(height: 16),
         _Tiles(report: r),
         const SizedBox(height: 12),
+        if (advice.isNotEmpty || onAskCoach != null) ...[
+          AdviceCard(
+            advice: advice,
+            action: onAskCoach == null
+                ? null
+                : SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onAskCoach,
+                      icon: const Icon(Icons.forum_outlined),
+                      label: const Text('Ask the coach about this session'),
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 12),
+        ],
         _TimelineCard(report: r),
         const SizedBox(height: 12),
         if (r.actions != null) ...[_ActionsCard(report: r), const SizedBox(height: 12)],
