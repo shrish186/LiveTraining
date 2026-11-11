@@ -11,7 +11,7 @@ firmware blends towards the ADXL375's magnitude, keeping the built-in sensor's d
 borrowed, so it does not matter which way round the breakout sits in the case. With the ADXL375 the packets carry
 10 mg per count (±327 g); without it the same firmware sends 1 mg per count and simply clips at 16 g.
 
-### Wiring (4 wires, STEMMA QT cable to male headers)
+### Wiring (4 wires, STEMMA QT cable with female sockets)
 
 | ADXL375 (STEMMA QT wire) | XIAO pin |
 |---|---|
@@ -20,8 +20,9 @@ borrowed, so it does not matter which way round the breakout sits in the case. W
 | SDA (blue) | D4 |
 | SCL (yellow) | D5 |
 
-Solder the header ends to the XIAO's pads (or plug them into a breadboard first to test). Keep the wires short and
-fix the breakout flat with foam tape: a loose board rattles and adds fake peaks. The breakout has its own pull-up
+Plug the cable's JST end into the ADXL375 and push the four female sockets onto the pre-soldered XIAO's pins
+(a cable with *male* header ends won't fit a pre-soldered XIAO). Keep the wires short and fix the breakout flat
+with foam tape: a loose board rattles and adds fake peaks. The breakout has its own pull-up
 resistors, so nothing else is needed.
 
 At power-on the LED shows **one long green flash** if the ADXL375 was found, **one long red flash** if not
