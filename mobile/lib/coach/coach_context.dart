@@ -21,6 +21,8 @@ Map<String, dynamic> _summary(SessionSummary s) => {
   if (s.actions != null) s.actionsLabel ?? 'actions': s.actions,
   if (s.strikes != null) 'footstrikes': s.strikes,
   if (s.impactLoad != null) 'impact_load_g': s.impactLoad!.round(),
+  if (s.firstActionG != null) 'first_${s.actionsLabel ?? 'actions'}_landing_g': _r1(s.firstActionG!),
+  if (s.lastActionG != null) 'last_${s.actionsLabel ?? 'actions'}_landing_g': _r1(s.lastActionG!),
   if (s.hrAvg != null) 'hr_avg': s.hrAvg!.round(),
   if (s.hrMax != null) 'hr_max': s.hrMax!.round(),
 };

@@ -203,6 +203,8 @@ class SquadController extends ChangeNotifier {
           strikes: p.coach?.strikes?.strikes,
           actions: p.coach?.actions?.actions.length,
           actionsLabel: p.coach?.actions?.cfg.labelPlural,
+          firstActionG: p.coach?.actions?.firstPeakG,
+          lastActionG: p.coach?.actions?.lastPeakG,
         ).toJson(),
       );
       p.recorder = null;

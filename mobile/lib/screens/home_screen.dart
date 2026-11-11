@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../app_controller.dart';
-import '../coach/advice.dart';
 import '../coach/live_coach.dart';
 import '../config.dart';
 import '../sources/sensor_link.dart';
@@ -62,7 +61,7 @@ class HomeScreen extends StatelessWidget {
               if (controller.sessions.isNotEmpty) ...[
                 AdviceCard(
                   title: 'Coach',
-                  advice: adviceForWeek(controller.trends).take(2).toList(),
+                  advice: controller.homeAdvice,
                   action: SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(

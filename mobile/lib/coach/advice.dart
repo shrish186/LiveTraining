@@ -6,6 +6,8 @@
 library;
 
 import '../report/session_report.dart';
+import '../util/day_summary.dart';
+import 'actions.dart';
 import '../report/signal_quality.dart';
 import '../util/trends.dart';
 
@@ -215,4 +217,41 @@ List<Advice> adviceForWeek(Trends t) {
     );
   }
   return out;
+}
+
+/// Readiness from the sensor: how the latest [sport] session started (its first actions' landing) against
+/// the athlete's usual start in earlier sessions. Null when the profile has no such rule or there's too
+/// little history.
+Advice? adviceForLatestStart(Iterable<DayEntry> entries, String sport, ActionConfig cfg) {
+  final drop = cfg.readinessDropPct, rise = cfg.readinessRisePct;
+  if (drop == null && rise == null) return null;
+  final mine = entries.where((e) => e.sport == sport && e.summary?.firstActionG != null).toList()
+    ..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+  if (mine.isEmpty) return null;
+  final latest = mine.first;
+  final usual = actionBaseline(mine, sport, minSessions: cfg.baselineSessions, before: latest.startedAt);
+  if (usual == null || usual <= 0) return null;
+  final first = latest.summary!.firstActionG!;
+  final pct = (first / usual - 1) * 100;
+  final what = 'first ${cfg.compare} ${cfg.labelPlural}';
+  if (drop != null && pct <= -drop) {
+    return Advice(
+      AdviceLevel.warn,
+      'Last session started soft (${_pct(pct)} below usual)',
+      'Your $what landed at ${first.toStringAsFixed(1)} g against your usual ${usual.toStringAsFixed(1)} g. '
+          'If it happens again next time, take an easier day: a soft start usually means you haven\'t recovered.',
+    );
+  }
+  if (rise != null && pct >= rise) {
+    return Advice(
+      AdviceLevel.good,
+      'Last session started sharp (${_pct(pct)} above usual)',
+      'Your $what landed at ${first.toStringAsFixed(1)} g against your usual ${usual.toStringAsFixed(1)} g.',
+    );
+  }
+  return Advice(
+    AdviceLevel.good,
+    'Normal start last session',
+    'Your $what were within ${_pct(pct)} of your usual ${usual.toStringAsFixed(1)} g.',
+  );
 }

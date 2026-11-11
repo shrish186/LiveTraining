@@ -14,6 +14,8 @@ class SessionSummary {
     this.strikes,
     this.actions,
     this.actionsLabel,
+    this.firstActionG,
+    this.lastActionG,
   });
 
   /// Motion load, (m/s²)·min, as SessionStats.load.
@@ -33,6 +35,10 @@ class SessionSummary {
   final int? actions;
   final String? actionsLabel;
 
+  /// Mean landing (g) of the first and last few actions: the sensor's readiness and fatigue markers.
+  final double? firstActionG;
+  final double? lastActionG;
+
   Map<String, dynamic> toJson() => {
     'load': double.parse(load.toStringAsFixed(1)),
     'efforts': efforts,
@@ -43,6 +49,8 @@ class SessionSummary {
     if (strikes != null) 'strikes': strikes,
     if (actions != null) 'actions': actions,
     if (actionsLabel != null) 'actions_label': actionsLabel,
+    if (firstActionG != null) 'first_action_g': double.parse(firstActionG!.toStringAsFixed(2)),
+    if (lastActionG != null) 'last_action_g': double.parse(lastActionG!.toStringAsFixed(2)),
   };
 
   /// Null for sessions recorded before summaries existed (or by another device).
@@ -58,6 +66,8 @@ class SessionSummary {
       strikes: (j['strikes'] as num?)?.toInt(),
       actions: (j['actions'] as num?)?.toInt(),
       actionsLabel: j['actions_label'] as String?,
+      firstActionG: (j['first_action_g'] as num?)?.toDouble(),
+      lastActionG: (j['last_action_g'] as num?)?.toDouble(),
     );
   }
 }
@@ -113,4 +123,17 @@ class DaySummary {
   }
 
   FatigueStatus get fatigue => fatigueEfforts > 0 ? FatigueStatus.building : FatigueStatus.none;
+}
+
+/// The athlete's usual first-actions landing (g) for [sport]: the median over their earlier sessions that
+/// recorded one, or null with fewer than [minSessions] of them (median: one odd session doesn't move it).
+double? actionBaseline(Iterable<DayEntry> entries, String sport, {int minSessions = 3, DateTime? before}) {
+  final values = [
+    for (final e in entries)
+      if (e.sport == sport && e.summary?.firstActionG != null && (before == null || e.startedAt.isBefore(before)))
+        e.summary!.firstActionG!,
+  ]..sort();
+  if (values.length < minSessions || values.isEmpty) return null;
+  final m = values.length ~/ 2;
+  return values.length.isOdd ? values[m] : (values[m - 1] + values[m]) / 2;
 }

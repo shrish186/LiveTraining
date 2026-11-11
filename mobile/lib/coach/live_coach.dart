@@ -51,7 +51,7 @@ class LiveEffort {
 }
 
 class LiveCoach {
-  LiveCoach(this.cfg, {this.restingHr, this.recoveryScore})
+  LiveCoach(this.cfg, {this.restingHr, this.recoveryScore, this.actionBaselineG})
     : _windowBins = math.max(1, (cfg.smoothingWindowS * gridHz).round()),
       strikes = cfg.strikeMinPeakG == null
           ? null
@@ -80,6 +80,10 @@ class LiveCoach {
   /// From WHOOP. Without it, warm-up is measured against the lowest HR of the first minute.
   final double? restingHr;
   final double? recoveryScore;
+
+  /// The athlete's usual first-over landing (g) from earlier sessions, for readiness from the sensor.
+  final double? actionBaselineG;
+  bool _startCalled = false;
 
   // Motion smoothing
   final int _windowBins;
@@ -231,6 +235,7 @@ class LiveCoach {
         ),
       );
     }
+    _checkStart(det);
     final drift = det.peakDriftPct;
     if (!_actionDriftCalled && drift != null && -drift >= cfg.peakDropPct) {
       _actionDriftCalled = true;
@@ -241,6 +246,38 @@ class LiveCoach {
           'Fatigue building',
           'Your last ${a.compare} ${a.labelPlural} landed ${(-drift).round()}% softer than your first '
               '${a.compare}. Consider ending the spell.',
+        ),
+      );
+    }
+  }
+
+  /// Readiness from the sensor: once the first `compare` actions are in, compare their landing with the
+  /// athlete's usual first ones. Only a clear difference is called; a normal start stays quiet.
+  void _checkStart(ActionDetector det) {
+    final a = det.cfg, baseline = actionBaselineG, first = det.firstPeakG;
+    if (_startCalled || baseline == null || baseline <= 0 || first == null) return;
+    _startCalled = true;
+    final pct = (first / baseline - 1) * 100;
+    final drop = a.readinessDropPct, rise = a.readinessRisePct;
+    final t = (_nowS * 1000).round();
+    if (drop != null && pct <= -drop) {
+      _pending.add(
+        CoachCall(
+          CallType.readiness,
+          t,
+          'Soft start · ${(-pct).round()}% below your usual',
+          'Your first ${a.compare} ${a.labelPlural} landed at ${first.toStringAsFixed(1)} g against your usual '
+              '${baseline.toStringAsFixed(1)} g. Ease in and build through the session.',
+        ),
+      );
+    } else if (rise != null && pct >= rise) {
+      _pending.add(
+        CoachCall(
+          CallType.readiness,
+          t,
+          'Sharp start · ${pct.round()}% above your usual',
+          'Your first ${a.compare} ${a.labelPlural} landed at ${first.toStringAsFixed(1)} g against your usual '
+              '${baseline.toStringAsFixed(1)} g. A good day for quality work.',
         ),
       );
     }

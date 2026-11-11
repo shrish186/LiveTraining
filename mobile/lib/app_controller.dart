@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'coach/advice.dart';
 import 'coach/coach_context.dart';
 import 'coach/live_coach.dart';
 import 'coach/profiles.dart';
@@ -438,12 +439,20 @@ class AppController extends ChangeNotifier {
     recorder = r;
     calls.clear();
     final profiles = _profiles;
-    coach = profiles == null
+    final cfg = profiles == null ? null : CoachConfig.fromProfile(profiles.forSport(sport), sessionPlacement);
+    coach = cfg == null
         ? null
         : LiveCoach(
-            CoachConfig.fromProfile(profiles.forSport(sport), sessionPlacement),
+            cfg,
             restingHr: recovery?.restingHr,
             recoveryScore: recovery?.recoveryScore,
+            actionBaselineG: cfg.actions == null
+                ? null
+                : actionBaseline(
+                    sessions.map((s) => s.dayEntry).whereType<DayEntry>(),
+                    sport,
+                    minSessions: cfg.actions!.baselineSessions,
+                  ),
           );
     _deliver(coach?.start() ?? const []);
     await WakelockPlus.enable();
@@ -466,6 +475,8 @@ class AppController extends ChangeNotifier {
         strikes: c?.strikes?.strikes,
         actions: c?.actions?.actions.length,
         actionsLabel: c?.actions?.cfg.labelPlural,
+        firstActionG: c?.actions?.firstPeakG,
+        lastActionG: c?.actions?.lastPeakG,
       ).toJson(),
     );
     coach = null;
@@ -497,6 +508,16 @@ class AppController extends ChangeNotifier {
   }
 
   // ---- AI coach ---------------------------------------------------------------
+
+  /// Advice for the Live tab's Coach card: how the last session started (readiness from the sensor),
+  /// then this week's load.
+  List<Advice> get homeAdvice {
+    final entries = sessions.map((s) => s.dayEntry).whereType<DayEntry>().toList();
+    final profiles = _profiles;
+    final actionCfg = profiles == null ? null : CoachConfig.fromProfile(profiles.forSport(sport), placement).actions;
+    final start = actionCfg == null ? null : adviceForLatestStart(entries, sport, actionCfg);
+    return [?start, ...adviceForWeek(trends)].take(3).toList();
+  }
 
   /// Why the AI coach can't be used yet, or null when it can be tried.
   String? get coachNotSetUp => settings.backendUrl.isEmpty

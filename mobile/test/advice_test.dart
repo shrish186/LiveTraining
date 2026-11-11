@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:live_training/coach/actions.dart';
 import 'package:live_training/coach/advice.dart';
 import 'package:live_training/coach/profiles.dart';
 import 'package:live_training/report/session_report.dart';
@@ -94,6 +95,50 @@ void main() {
       final titles = adviceForWeek(Trends.of(entries, today)).map((a) => a.title);
       expect(titles, contains('Fatigue called 2 times this week'));
       expect(titles, contains('Trained 6 of the last 7 days'));
+    });
+  });
+
+  group('readiness from the sensor', () {
+    const cfg = ActionConfig(
+      label: 'delivery',
+      labelPlural: 'deliveries',
+      minPeakG: 8,
+      minRatio: 1.4,
+      runupWindowS: 6,
+      minRunupStrikes: 4,
+      minGapS: 15,
+      maxStrideS: 1.5,
+      compare: 6,
+      readinessDropPct: 8,
+      readinessRisePct: 5,
+    );
+    DayEntry bowl(int day, double first) => DayEntry(
+      startedAt: DateTime(2026, 11, day, 9),
+      duration: const Duration(minutes: 60),
+      sport: 'cricket',
+      summary: SessionSummary(load: 10, efforts: 0, fatigueEfforts: 0, firstActionG: first, lastActionG: first - 1),
+    );
+
+    test('the usual start is the median of earlier sessions, and needs enough of them', () {
+      final entries = [bowl(1, 16), bowl(2, 30), bowl(3, 17)];
+      expect(actionBaseline(entries, 'cricket'), 17, reason: 'one odd session does not move a median');
+      expect(actionBaseline(entries, 'cricket', minSessions: 4), isNull);
+      expect(actionBaseline(entries, 'soccer'), isNull);
+    });
+
+    test('a soft start is called out, a normal one is reassuring, too little history says nothing', () {
+      final soft = adviceForLatestStart([bowl(1, 17), bowl(2, 17), bowl(3, 17), bowl(4, 15)], 'cricket', cfg)!;
+      expect(soft.level, AdviceLevel.warn);
+      expect(soft.title, 'Last session started soft (12% below usual)');
+      final normal = adviceForLatestStart([bowl(1, 17), bowl(2, 17), bowl(3, 17), bowl(4, 16.8)], 'cricket', cfg)!;
+      expect(normal.title, 'Normal start last session');
+      expect(adviceForLatestStart([bowl(1, 17), bowl(2, 15)], 'cricket', cfg), isNull);
+    });
+
+    test('summary keeps first and last landings through JSON', () {
+      final back = SessionSummary.fromJson(bowl(1, 16.237).summary!.toJson())!;
+      expect(back.firstActionG, 16.24);
+      expect(back.lastActionG, 15.24);
     });
   });
 }

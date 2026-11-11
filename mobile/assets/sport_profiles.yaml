@@ -102,3 +102,6 @@ profiles:
       min_runup_strikes: 4           # sensor-leg strikes in the run-up window
       min_gap_s: 15.0                # one delivery per this long at most (walk back to the mark)
       compare: 6                     # drift: last 6 deliveries vs first 6 (one over)
+      readiness_drop_pct: 8          # first over this much softer than the athlete's usual first over: "soft start"
+      readiness_rise_pct: 5          # ...this much harder: "sharp start"
+      baseline_sessions: 3           # earlier sessions needed before comparing (median of their first overs)

@@ -113,6 +113,9 @@ class CoachConfig {
       minGapS: _num(a, 'min_gap_s'),
       maxStrideS: maxStrideS,
       compare: _num(a, 'compare').round(),
+      readinessDropPct: a['readiness_drop_pct'] == null ? null : _num(a, 'readiness_drop_pct'),
+      readinessRisePct: a['readiness_rise_pct'] == null ? null : _num(a, 'readiness_rise_pct'),
+      baselineSessions: a['baseline_sessions'] == null ? 3 : _num(a, 'baseline_sessions').round(),
     );
   }
 

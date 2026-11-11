@@ -19,6 +19,9 @@ class ActionConfig {
     required this.minGapS,
     required this.maxStrideS,
     required this.compare,
+    this.readinessDropPct,
+    this.readinessRisePct,
+    this.baselineSessions = 3,
   });
 
   final String label;
@@ -30,6 +33,12 @@ class ActionConfig {
   final double minGapS;
   final double maxStrideS;
   final int compare;
+
+  /// Readiness from the sensor: the first [compare] actions against the athlete's usual first ones.
+  /// Null: the profile doesn't define it.
+  final double? readinessDropPct;
+  final double? readinessRisePct;
+  final int baselineSessions;
 }
 
 class LiveAction {
@@ -100,6 +109,15 @@ class ActionDetector {
     actions.add(p);
     return p;
   }
+
+  /// Mean landing of the first `compare` actions (null until there are that many).
+  double? get firstPeakG =>
+      actions.length < cfg.compare || cfg.compare < 1 ? null : _mean(actions.take(cfg.compare).map((a) => a.peakG));
+
+  /// Mean landing of the last `compare` actions (null until there are that many).
+  double? get lastPeakG => actions.length < cfg.compare || cfg.compare < 1
+      ? null
+      : _mean(actions.skip(actions.length - cfg.compare).map((a) => a.peakG));
 
   /// Landing spike of the last `compare` actions vs the first `compare`, in % (null until 2 × compare).
   double? get peakDriftPct {

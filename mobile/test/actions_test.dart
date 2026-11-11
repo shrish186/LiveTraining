@@ -104,4 +104,43 @@ void main() {
     expect(fatigue, hasLength(1));
     expect(fatigue.single.detail, contains('last 6 deliveries landed 20% softer'));
   });
+
+  test('readiness from the sensor: the first over against the usual first over', () {
+    final profiles = SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync());
+    final cfg = CoachConfig.fromProfile(profiles.forSport('cricket'), 'ankle');
+    expect(cfg.actions!.readinessDropPct, 8);
+    expect(cfg.actions!.baselineSessions, 3);
+
+    List<CoachCall> bowlSpell(double? usual) {
+      final coach = LiveCoach(cfg, actionBaselineG: usual);
+      final calls = <CoachCall>[];
+      // 6 deliveries landing at 15 g, 40 s apart, run-up strides at 5 g (as raw 100 Hz samples).
+      final spikes = <double, double>{};
+      for (var k = 0; k < 6; k++) {
+        final s0 = 20.0 + 40 * k;
+        for (var i = 0; i < 8; i++) {
+          spikes[s0 + i * 0.65] = 5;
+        }
+        spikes[s0 + 8 * 0.65] = 15;
+      }
+      for (var ms = 0; ms < 280000; ms += 10) {
+        final t = ms / 1000;
+        var g = 1.0;
+        for (final e in spikes.entries) {
+          if ((t - e.key).abs() < 0.05) g += (e.value - 1) * math.exp(-math.pow((t - e.key) / 0.012, 2));
+        }
+        coach.addAcc(ms, 0, g * 9.81, 0);
+        if (ms % 200 == 0) calls.addAll(coach.tick(ms));
+      }
+      calls.addAll(coach.finish());
+      expect(coach.actions!.firstPeakG, closeTo(15, 0.2));
+      return calls.where((c) => c.type == CallType.readiness).toList();
+    }
+
+    final soft = bowlSpell(17.0);
+    expect(soft.single.title, startsWith('Soft start · 12% below your usual'));
+    expect(bowlSpell(14.0).single.title, startsWith('Sharp start'));
+    expect(bowlSpell(15.2), isEmpty, reason: 'a normal start stays quiet');
+    expect(bowlSpell(null), isEmpty, reason: 'no history: nothing to compare with');
+  });
 }
