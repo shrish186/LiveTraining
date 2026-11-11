@@ -38,6 +38,8 @@ At power-on the LED shows **one long green flash** if the ADXL375 was found, **o
 4. The LED **blinks blue**: it is advertising as `LT-xxxx`. In the app: Squad › Add player › Add sensor.
    The LED turns **green** while connected. A **red flash** every second means the motion sensor did not start.
 
+First time with the hardware: follow [docs/sensor-bring-up.md](../../docs/sensor-bring-up.md) step by step.
+
 ### Build it yourself
 
 Arduino IDE: add the board URL `https://files.seeedstudio.com/arduino/package_seeeduino_boards_index.json`,
