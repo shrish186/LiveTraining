@@ -21,7 +21,7 @@ class StreamQuality:
     duration_s: float
     rate_hz: float               # samples in a typical (median) second
     lost_pct: float              # samples missing against that rate
-    gaps: int                    # intervals longer than gap_ms
+    gaps: int                    # intervals longer than gap_ms (or 3 sample periods, if that is longer)
     longest_gap_s: float
     clipped_pct: float           # samples stuck at the sensor's limit
     clip_level_g: float | None   # the limit they are stuck at, if clipping was found
@@ -63,7 +63,9 @@ def stream_quality(t_s: np.ndarray, x: np.ndarray, y: np.ndarray, z: np.ndarray,
     expected = rate * duration
     lost_pct = max(0.0, (1 - len(t) / expected) * 100) if expected else 0.0
     dt = np.diff(t)
-    gaps = int((dt > gap_ms / 1000).sum())
+    # A dropout is judged against the stream's own rate: at 20 Hz a 50 ms interval is normal.
+    gap_s = max(gap_ms / 1000, 3 / rate if rate else 0.0)
+    gaps = int((dt > gap_s).sum())
     longest_gap = float(dt.max())
 
     # Clipping: real peaks are single samples; a sensor at its limit repeats the same top value.

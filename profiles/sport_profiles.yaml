@@ -52,7 +52,7 @@ profiles:
     drift:                           # form drift: the last N efforts vs the first N
       compare_efforts: 2
     quality:                         # is a recording good enough to trust?
-      gap_ms: 50                     # a dropout is an interval longer than this
+      gap_ms: 50                     # a dropout is an interval longer than this (or 3 sample periods if longer)
       max_lost_pct: 1.0              # missing samples tolerated before it counts
       clip_min_samples: 5            # this many samples stuck at the top value = the sensor hit its limit
       still_std_g: 0.03              # "at rest" for the gravity and strap checks

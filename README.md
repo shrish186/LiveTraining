@@ -231,6 +231,17 @@ jump test), and form drift (last efforts against the first: strike peak %, strid
 variability). The app counts footstrikes and impact load live too, and the Today card adds them up.
 These are load and form numbers. The app makes no injury or medical claims.
 
+**Data quality:** every recording is graded good / fair / poor before its numbers are trusted:
+lost samples, dropouts (judged against the stream's own rate), clipping (the sensor hit its
+limit), gravity error at rest (calibration) and a sensor whose resting angle changed (the strap
+may have moved). `analyze_session.py` prints it, and the app shows it on each session's report.
+`analysis/ltlib/quality.py` also holds the pieces for our own sensor: `fuse_ranges` (a low-g and a
+high-g accelerometer into one unclipped signal) and `fit_clock` (a sensor's clock onto the phone's).
+
+**Session report (app):** tap a session in the Sessions tab. The phone replays the recording
+through the live coach and shows efforts, load, heart rate, impact load, a timeline with effort
+and fatigue bands, and the data quality card. A body-worn sensor in the file wins over the phone.
+
 **Live calls from the leg:** with our watch app on the ankle streaming to the phone, the coach
 uses the leg instead of the phone. See [docs/apple-watch.md](docs/apple-watch.md).
 
@@ -426,8 +437,8 @@ Where the spec was open, I picked the simplest option that works and noted it he
 
 - **Verified in development:**
   - Backend: 65 tests passing
-  - Analysis: 41 tests passing
-  - Flutter: 64 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
+  - Analysis: 50 tests passing
+  - Flutter: 71 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
 - **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development

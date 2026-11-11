@@ -3,6 +3,7 @@
 //
 // To also save PNG previews (with real fonts):
 //   PREVIEW_DIR=/tmp/previews PREVIEW_FONT_DIR=/path/with/Inter-*.otf flutter test test/ui_screens_test.dart
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -16,11 +17,14 @@ import 'package:live_training/main.dart';
 import 'package:live_training/coach/live_coach.dart';
 import 'package:live_training/coach/profiles.dart';
 import 'package:live_training/recording/session_recorder.dart';
+import 'package:live_training/report/session_report.dart';
+import 'package:live_training/screens/session_report_screen.dart';
 import 'package:live_training/services/backend_api.dart';
 import 'package:live_training/services/session_store.dart';
 import 'package:live_training/services/settings_store.dart';
 import 'package:live_training/sources/motion_source.dart';
 import 'package:live_training/sources/whoop_hr_source.dart';
+import 'package:live_training/ui/theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _NoMotion implements MotionSource {
@@ -194,6 +198,48 @@ void main() {
     ]);
     await _pump(tester, c, 'home_recording');
     await tester.runAsync(() => c.recorder!.stop());
+  });
+
+  testWidgets('session report', (tester) async {
+    final csv = utf8.decode(gzip.decode(File('test/fixtures/parity_session.csv.gz').readAsBytesSync()));
+    final report = SessionReport.build(const LineSplitter().convert(csv), {
+      'sport': 'soccer',
+      'placement': 'phone_armband',
+    }, SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync()));
+    final session = _localSession('r', DateTime(2026, 10, 27, 18, 5), 31, {});
+    tester.view.physicalSize = const Size(1170, 2532 * 1.5);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          theme: buildTheme(),
+          debugShowCheckedModeBanner: false,
+          home: Scaffold(
+            body: SafeArea(
+              child: SessionReportView(session: session, report: report),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
+    expect(find.text('Fatigue building from effort 5'), findsOneWidget);
+    final dir = _previewDir;
+    if (dir != null) {
+      await tester.runAsync(() async {
+        final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$dir/session_report.png').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
+    // The quality card can be below the fold: scroll to it.
+    await tester.scrollUntilVisible(find.textContaining('Good'), 300);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('sessions, empty', (tester) async {

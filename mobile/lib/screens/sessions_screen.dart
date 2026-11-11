@@ -4,6 +4,7 @@ import '../app_controller.dart';
 import '../services/session_store.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
+import 'session_report_screen.dart';
 
 const _months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -119,7 +120,10 @@ class _SessionTile extends StatelessWidget {
 
     return AppCard(
       padding: const EdgeInsets.all(16),
-      onTap: failed ? () => _showFailure(context, status!) : null,
+      // Tap a finished session for its report (the Failed pill has its own tap for upload errors).
+      onTap: recordingThis
+          ? null
+          : () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SessionReportScreen(session: s))),
       child: Row(
         children: [
           Container(

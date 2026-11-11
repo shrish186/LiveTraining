@@ -91,3 +91,10 @@ def test_fit_clock_recovers_drift_and_offset_despite_radio_delay():
     scale, offset = ql.fit_clock(sensor, received)
     predicted = scale * sensor + offset
     assert np.abs(predicted - (true_scale * sensor + true_offset)).max() < 0.005   # within 5 ms
+
+
+def test_low_rate_stream_is_not_all_dropouts():
+    t, acc = still(60, hz=20)  # 50 ms between samples is normal at 20 Hz
+    t = t + np.random.default_rng(2).normal(0, 0.002, len(t))
+    q = check(np.sort(t), acc)
+    assert q.gaps == 0 and q.grade == "good"

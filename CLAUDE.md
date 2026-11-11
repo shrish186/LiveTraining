@@ -49,6 +49,10 @@ logic and the sport profiles.
 - Step metrics (footstrikes, impact load, jumps, form drift) live in `analysis/ltlib/steps.py`; the app's
   `mobile/lib/coach/strikes.dart` is its streaming twin. Both read the profile's `steps`/`impact`/`jumps` blocks
   and only run for leg placements listed in `steps.placements`.
+- Data quality (`analysis/ltlib/quality.py`, app twin `mobile/lib/report/signal_quality.dart`) reads the profile's
+  `quality` block. Keep the two in step: their tests use the same cases.
+- The app's session report (`mobile/lib/report/session_report.dart`) replays the CSV through `LiveCoach`, so the
+  report always agrees with the live calls. Don't add a second analysis path in Dart.
 - While our watch app streams live motion, the phone's coach uses the leg (source `apple_watch`) instead of the
   phone. Batched samples carry their age (`Sample.ageMs`) so the recorder stamps them when measured.
 - Live calls are written to the session as `call_*` events. Accuracy is checked with
