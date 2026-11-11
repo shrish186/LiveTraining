@@ -143,7 +143,7 @@ class _SessionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${prettySlug(s.sport)} · ${s.sessionType}',
+                  s.player ?? '${prettySlug(s.sport)} · ${s.sessionType}',
                   style: AppText.body.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 3),

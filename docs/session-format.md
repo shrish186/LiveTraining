@@ -34,7 +34,7 @@ Unused columns are left **empty** (not `0`, not `NaN`).
 | `phone` | the phone's own motion sensors (stand-in sensor) |
 | `whoop_hr` | WHOOP strap via its built-in Heart Rate Broadcast (standard BLE Heart Rate service 0x180D) |
 | `movesense` | Movesense sensor (planned) |
-| `xiao` | Seeed XIAO nRF52840 Sense (planned) |
+| `xiao` | Our own leg sensor (XIAO nRF52840-based prototype and its successors), over the protocol in `docs/sensor-protocol.md` |
 | `apple_watch` | Apple Watch app (`mobile/ios/LiveTrainingWatch Watch App`): acc, gyro, hr. Worn on the wrist or strapped to the lower leg. Appears in the watch's own session file, and in the phone's session when the watch streams live (acc only, ~100 Hz) |
 | `polar` | Polar sensor (planned) |
 
@@ -117,6 +117,7 @@ t_ms,source,kind,x,y,z,value
 | `notes` | no | free text |
 | `duration_ms` | no | written by the app at stop |
 | `summary` | no | written by the app at stop: `{load, efforts, fatigue_efforts, hr_avg, hr_max}`, plus `impact_load` (sum of footstrike peaks, g) and `strikes` when the motion came from a leg sensor. `load` is the motion load in (m/s²)·min; `efforts` and `fatigue_efforts` come from the live coach. Feeds the Today card |
+| `player`, `group_id` | no | squad sessions (one phone, several sensors): each player's sensor is recorded as its own session with the player's name; all sessions of one squad session share a `group_id` |
 | `complete` | no | `false` while recording. A session that stays `false` was cut short (app killed), but its CSV is still valid up to that point. |
 
 Unknown extra fields are allowed and preserved.

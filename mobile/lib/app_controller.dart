@@ -76,6 +76,7 @@ class AppController extends ChangeNotifier {
 
   // Live calls (sport profile from assets/sport_profiles.yaml)
   SportProfiles? _profiles;
+  SportProfiles? get profiles => _profiles;
   LiveCoach? coach;
   final List<CoachCall> calls = [];
 

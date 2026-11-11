@@ -14,6 +14,7 @@ class SessionSetup {
     required this.placement,
     this.athleteId,
     this.notes = '',
+    this.extra = const {},
   });
 
   final String sport;
@@ -21,6 +22,9 @@ class SessionSetup {
   final String placement;
   final int? athleteId;
   final String notes;
+
+  /// Extra metadata fields, e.g. `player` and `group_id` for squad sessions.
+  final Map<String, dynamic> extra;
 }
 
 /// Records every [Sample] it is given into `<dir>/<sessionId>.csv`, stamped with ONE monotonic
@@ -146,6 +150,7 @@ class SessionRecorder {
       'duration_ms': _stopwatch.elapsedMilliseconds,
       'complete': _stopped,
       'summary': ?_summary,
+      ...setup.extra,
     };
   }
 

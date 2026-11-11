@@ -22,6 +22,10 @@ class SettingsStore {
   String get placement => _prefs.getString('placement') ?? 'phone_armband';
   set placement(String v) => _prefs.setString('placement', v);
 
+  /// Player names for squad sessions (one phone, several sensors).
+  List<String> get squadPlayers => _prefs.getStringList('squad_players') ?? const [];
+  set squadPlayers(List<String> v) => _prefs.setStringList('squad_players', v);
+
   Set<String> get uploadedSessionIds => (_prefs.getStringList('uploaded_sessions') ?? const []).toSet();
   void markUploaded(String id) => _prefs.setStringList('uploaded_sessions', {...uploadedSessionIds, id}.toList());
 }

@@ -3,8 +3,10 @@
 //
 // To also save PNG previews (with real fonts):
 //   PREVIEW_DIR=/tmp/previews PREVIEW_FONT_DIR=/path/with/Inter-*.otf flutter test test/ui_screens_test.dart
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -25,6 +27,9 @@ import 'package:live_training/services/settings_store.dart';
 import 'package:live_training/sources/motion_source.dart';
 import 'package:live_training/sources/whoop_hr_source.dart';
 import 'package:live_training/ui/theme.dart';
+import 'package:live_training/screens/squad_screen.dart';
+import 'package:live_training/sources/sensor_link.dart';
+import 'package:live_training/squad/squad_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _NoMotion implements MotionSource {
@@ -240,6 +245,75 @@ void main() {
     // The quality card can be below the fold: scroll to it.
     await tester.scrollUntilVisible(find.textContaining('Good'), 300);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('squad, recording', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'squad_players': ['Arjun', 'Sam', 'Dev'],
+    });
+    final dir = Directory.systemTemp.createTempSync('squad_ui');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final squad = SquadController(
+      await SettingsStore.load(),
+      directory: () async => dir,
+      profiles: SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync()),
+    );
+    List<int> packet(int seq, int mg) {
+      final b = ByteData(12 + 60)
+        ..setUint8(0, 1)
+        ..setUint16(2, seq, Endian.little)
+        ..setUint32(4, seq * 100, Endian.little)
+        ..setUint16(8, 10000, Endian.little)
+        ..setUint8(10, 10)
+        ..setUint8(11, 1);
+      for (var i = 0; i < 10; i++) {
+        b.setInt16(12 + i * 6 + 2, mg, Endian.little);
+      }
+      return b.buffer.asUint8List();
+    }
+
+    await tester.runAsync(() async {
+      final a = StreamController<List<int>>(), b = StreamController<List<int>>();
+      await squad.assign(squad.players[0], SensorLink(const FoundSensor('A', 'LT-3F2A'), packets: a.stream));
+      await squad.assign(squad.players[1], SensorLink(const FoundSensor('B', 'LT-91C4'), packets: b.stream));
+      await squad.start();
+      for (var k = 0; k < 20; k++) {
+        a.add(packet(k, 2600));
+        b.add(packet(k, 1000));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      squad.tick();
+    });
+    tester.view.physicalSize = const Size(1170, 2532);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          theme: buildTheme(),
+          debugShowCheckedModeBanner: false,
+          home: Scaffold(
+            body: SafeArea(child: SquadScreen(squad: squad)),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
+    expect(find.text('Arjun'), findsOneWidget);
+    expect(find.text('No sensor'), findsOneWidget);
+    final dir2 = _previewDir;
+    if (dir2 != null) {
+      await tester.runAsync(() async {
+        final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$dir2/squad_recording.png').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
+    await tester.runAsync(squad.stop);
   });
 
   testWidgets('sessions, empty', (tester) async {

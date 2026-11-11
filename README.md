@@ -242,6 +242,12 @@ high-g accelerometer into one unclipped signal) and `fit_clock` (a sensor's cloc
 through the live coach and shows efforts, load, heart rate, impact load, a timeline with effort
 and fatigue bands, and the data quality card. A body-worn sensor in the file wins over the phone.
 
+**Squad sessions (app, Squad tab):** one phone records several players at once. Add players, give
+each a leg sensor (scan and pick), start. Every player gets a live card (efforts, impact, motion,
+fatigue flag, a Mark button for labelling deliveries) and, on stop, their own normal session file
+tagged with their name, so reports, upload and analysis work unchanged. The sensor's Bluetooth
+protocol is in [docs/sensor-protocol.md](docs/sensor-protocol.md); the firmware must match it.
+
 **Live calls from the leg:** with our watch app on the ankle streaming to the phone, the coach
 uses the leg instead of the phone. See [docs/apple-watch.md](docs/apple-watch.md).
 
@@ -438,7 +444,7 @@ Where the spec was open, I picked the simplest option that works and noted it he
 - **Verified in development:**
   - Backend: 65 tests passing
   - Analysis: 50 tests passing
-  - Flutter: 71 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
+  - Flutter: 80 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
 - **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development

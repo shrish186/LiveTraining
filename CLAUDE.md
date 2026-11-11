@@ -53,6 +53,8 @@ logic and the sport profiles.
   `quality` block. Keep the two in step: their tests use the same cases.
 - The app's session report (`mobile/lib/report/session_report.dart`) replays the CSV through `LiveCoach`, so the
   report always agrees with the live calls. Don't add a second analysis path in Dart.
+- Our leg sensor speaks `docs/sensor-protocol.md` (parser: `mobile/lib/sources/sensor_protocol.dart`). Change the doc,
+  the parser and the firmware together. Squad sessions (`mobile/lib/squad/`) record one normal session per player.
 - While our watch app streams live motion, the phone's coach uses the leg (source `apple_watch`) instead of the
   phone. Batched samples carry their age (`Sample.ageMs`) so the recorder stamps them when measured.
 - Live calls are written to the session as `call_*` events. Accuracy is checked with

@@ -19,11 +19,15 @@ class LocalSession {
   Duration get duration => Duration(milliseconds: (metadata['duration_ms'] as num?)?.toInt() ?? 0);
   bool get complete => metadata['complete'] as bool? ?? true;
 
+  /// Set for sessions recorded in a squad session: whose leg the sensor was on.
+  String? get player => metadata['player'] as String?;
+
   SessionSummary? get summary => SessionSummary.fromJson(metadata['summary']);
 
   DayEntry? get dayEntry {
     final t = startedAt;
-    return t == null ? null : DayEntry(startedAt: t, duration: duration, sport: sport, summary: summary);
+    // A squad session is someone else's training, not the phone owner's day.
+    return t == null || player != null ? null : DayEntry(startedAt: t, duration: duration, sport: sport, summary: summary);
   }
 
   /// True for sessions recorded by the Apple Watch app and received from the watch.
