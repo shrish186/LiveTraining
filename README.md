@@ -47,6 +47,10 @@ You'll see 6 detected efforts, with the last two flagged "fatigue building":
 
 ![synthetic analysis](docs/sample/synthetic_analysis.png)
 
+Cricket (fast bowling, our leg sensor on the front ankle): `python make_synthetic_spell.py --out output/ --marks`,
+then `python analyze_session.py output/spell.csv` lists 18 deliveries and the softer last over, and
+`python validate_session.py output/spell.csv` scores them against the coach's Mark taps.
+
 ---
 
 ## The app
@@ -54,6 +58,10 @@ You'll see 6 detected efforts, with the last two flagged "fatigue building":
 | Today | Recording | Settings |
 |---|---|---|
 | ![Live tab](docs/screenshots/home_connected.png) | ![Recording](docs/screenshots/home_recording.png) | ![Settings](docs/screenshots/settings.png) |
+
+| Cricket report | Squad (bowlers) | Trends |
+|---|---|---|
+| ![Cricket report](docs/screenshots/session_report_cricket.png) | ![Squad](docs/screenshots/squad_recording.png) | ![Trends](docs/screenshots/trends.png) |
 
 These screenshots are rendered by `mobile/test/ui_screens_test.dart` with sample data. To
 regenerate them:
@@ -251,6 +259,16 @@ protocol is in [docs/sensor-protocol.md](docs/sensor-protocol.md); the firmware 
 **Live calls from the leg:** with our watch app on the ankle streaming to the phone, the coach
 uses the leg instead of the phone. See [docs/apple-watch.md](docs/apple-watch.md).
 
+**Cricket:** with sport *cricket* and a leg sensor, the coach counts deliveries (a hard front-foot landing after a
+run-up), calls each one, and calls fatigue when the last over lands softer than the first. Deliveries show on the
+squad cards, the Today card, the report and the trends. Logic: `analysis/ltlib/actions.py` and its app twin.
+
+**Trends (Sessions tab › This week):** daily load for 4 weeks, this week against your own 4-week average, and
+sessions, training time, impact load and deliveries per week.
+
+**Our sensor:** firmware, case and parts in [hardware/](hardware/); first power-on in
+[docs/sensor-bring-up.md](docs/sensor-bring-up.md). **TestFlight and the App Store:** [docs/app-store.md](docs/app-store.md).
+
 **Field test protocol:** [docs/test-plan.md](docs/test-plan.md).
 
 **Today card (Home):** WHOOP's day strain (0–21, from the official `/v2/cycle` API, via
@@ -443,11 +461,12 @@ Where the spec was open, I picked the simplest option that works and noted it he
 
 - **Verified in development:**
   - Backend: 65 tests passing
-  - Analysis: 50 tests passing
-  - Flutter: 81 tests passing (including live-coach parity with the analysis), `flutter analyze` clean
+  - Analysis: 59 tests passing
+  - Flutter: 94 tests passing (including live-coach and delivery parity with the analysis), `flutter analyze` clean
+  - Sensor firmware compiles for the XIAO nRF52840 Sense; packet layout and high-g fusion unit-tested on the laptop
   - End to end against a running server: upload the synthetic session → list → download
     (byte-identical) → analyse
-- **Not yet verified:** a build on a physical phone (no Android SDK or Xcode in the development
+- **Not yet verified:** the sensor firmware on real hardware, the cricket thresholds on a real bowler, a build on a physical phone (no Android SDK or Xcode in the development
   environment) and a real WHOOP OAuth round trip. Both are the first things to try with the steps
   above.
 - **Next:**
