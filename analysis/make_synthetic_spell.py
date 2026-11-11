@@ -26,11 +26,12 @@ BALL_EVERY_S = 40
 RUNUP_STRIDES = 12
 
 
-def generate(overs: int = 3, marks: bool = False, seed: int = 3) -> tuple[list[str], dict, list[float]]:
+def generate(overs: int = 3, marks: bool = False, seed: int = 3,
+             warmup_s: float = WARMUP_S) -> tuple[list[str], dict, list[float]]:
     """Rows of the session CSV, its metadata, and the delivery times (s)."""
     rng = np.random.default_rng(seed)
     balls = overs * 6
-    duration = WARMUP_S + 30 + balls * BALL_EVERY_S + 30
+    duration = warmup_s + 30 + balls * BALL_EVERY_S + 30
     t = np.arange(int(duration * RATE_HZ)) / RATE_HZ
     g = np.ones_like(t)
 
@@ -39,14 +40,14 @@ def generate(overs: int = 3, marks: bool = False, seed: int = 3) -> tuple[list[s
         g[i0:i1] += (peak - 1) * np.exp(-((t[i0:i1] - at) / width) ** 2)
 
     # Warm-up jog: our leg every 0.75 s, ~5 g.
-    for at in np.arange(10, WARMUP_S, 0.75):
+    for at in np.arange(10, warmup_s, 0.75):
         strike(at + rng.normal(0, 0.01), 5.0 + rng.normal(0, 0.4))
 
     deliveries: list[float] = []
     hr_load: list[tuple[float, float]] = []   # (time, extra bpm) after each ball
     for k in range(balls):
         late = k >= balls - 6                  # the last over: softer landings, slower run-up
-        start = WARMUP_S + 30 + k * BALL_EVERY_S + rng.normal(0, 2)
+        start = warmup_s + 30 + k * BALL_EVERY_S + rng.normal(0, 2)
         stride = 0.72 if late else 0.66
         at = start
         for i in range(RUNUP_STRIDES):
@@ -75,7 +76,7 @@ def generate(overs: int = 3, marks: bool = False, seed: int = 3) -> tuple[list[s
 
     # Heart rate: jog ~140, each ball +22 bpm decaying with a 40 s time constant over a 120 base.
     for s in range(int(duration)):
-        base = 70 + 70 * min(1, s / 120) if s < WARMUP_S else 120
+        base = 70 + 70 * min(1, s / 120) if s < warmup_s else 120
         extra = sum(a * np.exp(-(s - b) / 40) for b, a in hr_load if s >= b)
         bpm = int(round(min(base + extra, 185) + rng.normal(0, 1)))
         timed.append((s * 1000, f"{s * 1000},whoop_hr,hr,,,,{bpm}"))

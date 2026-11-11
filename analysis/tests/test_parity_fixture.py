@@ -13,3 +13,12 @@ def test_parity_fixture_matches_current_analysis(tmp_path):
     _, meta = fx.fixture_rows()
     (tmp_path / "s.json").write_text(json.dumps(meta))
     assert fx.expected_from(csv, tmp_path / "s.json") == json.loads(fx.EXPECTED.read_text())
+
+
+def test_spell_fixture_matches_current_analysis(tmp_path):
+    assert fx.SPELL_GZ.exists() and fx.SPELL_EXPECTED.exists(), "run: python make_parity_fixture.py"
+    csv = tmp_path / "s.csv"
+    csv.write_text(gzip.open(fx.SPELL_GZ, "rt").read())
+    _, meta = fx.spell_rows()
+    (tmp_path / "s.json").write_text(json.dumps(meta))
+    assert fx.spell_expected_from(csv, tmp_path / "s.json") == json.loads(fx.SPELL_EXPECTED.read_text())

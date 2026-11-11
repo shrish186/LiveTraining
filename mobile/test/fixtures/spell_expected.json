@@ -1,0 +1,68 @@
+{
+  "profile": "cricket",
+  "placement": "ankle",
+  "strikes": 233,
+  "deliveries": [
+    {
+      "t_s": 76.346,
+      "peak_g": 15.6123,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 116.404,
+      "peak_g": 14.5774,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 157.615,
+      "peak_g": 17.565,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 200.125,
+      "peak_g": 17.5241,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 237.212,
+      "peak_g": 18.2263,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 275.971,
+      "peak_g": 18.0447,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 320.654,
+      "peak_g": 14.6359,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 357.096,
+      "peak_g": 12.9962,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 403.077,
+      "peak_g": 14.9643,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 439.471,
+      "peak_g": 12.5189,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 479.587,
+      "peak_g": 14.7677,
+      "runup_strikes": 8
+    },
+    {
+      "t_s": 520.885,
+      "peak_g": 12.7517,
+      "runup_strikes": 8
+    }
+  ],
+  "drift_pct": -18.626
+}

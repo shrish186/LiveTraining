@@ -63,15 +63,20 @@ Future<void> _loadFonts() async {
   }
 }
 
-LocalSession _localSession(String id, DateTime startedAt, int minutes, Map<String, dynamic> summary) =>
-    LocalSession(id, File('$id.csv'), File('$id.json'), {
-      'session_id': id,
-      'sport': 'soccer',
-      'session_type': 'training',
-      'started_at': startedAt.toUtc().toIso8601String(),
-      'duration_ms': minutes * 60000,
-      'summary': summary,
-    });
+LocalSession _localSession(
+  String id,
+  DateTime startedAt,
+  int minutes,
+  Map<String, dynamic> summary, {
+  String sport = 'soccer',
+}) => LocalSession(id, File('$id.csv'), File('$id.json'), {
+  'session_id': id,
+  'sport': sport,
+  'session_type': 'training',
+  'started_at': startedAt.toUtc().toIso8601String(),
+  'duration_ms': minutes * 60000,
+  'summary': summary,
+});
 
 Future<AppController> _controller({required bool withData}) async {
   SharedPreferences.setMockInitialValues({
@@ -248,6 +253,47 @@ void main() {
     // The quality card can be below the fold: scroll to it.
     await tester.scrollUntilVisible(find.textContaining('Good'), 300);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('session report, cricket spell', (tester) async {
+    final csv = utf8.decode(gzip.decode(File('test/fixtures/spell_session.csv.gz').readAsBytesSync()));
+    final report = SessionReport.build(const LineSplitter().convert(csv), {
+      'sport': 'cricket',
+      'placement': 'ankle',
+    }, SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync()));
+    expect(report.actions, hasLength(12));
+    final session = _localSession('c', DateTime(2026, 12, 7, 10, 0), 10, {}, sport: 'cricket');
+    tester.view.physicalSize = const Size(1170, 2532 * 1.5);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          theme: buildTheme(),
+          debugShowCheckedModeBanner: false,
+          home: Scaffold(
+            body: SafeArea(
+              child: SessionReportView(session: session, report: report),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
+    expect(find.text('DELIVERIES'), findsNWidgets(2)); // the tile and the card
+    expect(find.textContaining('softer than the first 6'), findsOneWidget);
+    final dir = _previewDir;
+    if (dir != null) {
+      await tester.runAsync(() async {
+        final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$dir/session_report_cricket.png').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
   });
 
   testWidgets('squad, recording', (tester) async {

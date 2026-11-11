@@ -2,9 +2,11 @@
 
 Usage: python make_parity_fixture.py
 
-Outputs (both committed):
+Outputs (all committed):
   mobile/test/fixtures/parity_session.csv.gz   synthetic session (acc + hr + events, 20 Hz)
   mobile/test/fixtures/parity_expected.json    what analyze_session.py finds in it
+  mobile/test/fixtures/spell_session.csv.gz    synthetic bowling spell from the leg sensor (104 Hz)
+  mobile/test/fixtures/spell_expected.json     the deliveries analyze_session.py finds in it
 
 mobile/test/coach_parity_test.dart replays the CSV through LiveCoach and must reach the same
 efforts, HR recoveries and fatigue flags. tests/test_parity_fixture.py fails if the expected JSON
@@ -16,12 +18,33 @@ import json
 from pathlib import Path
 
 import make_synthetic_session
+import make_synthetic_spell
 from analyze_session import analyze
 
 ROOT = Path(__file__).resolve().parent
 FIXTURES = ROOT.parent / "mobile" / "test" / "fixtures"
 CSV_GZ = FIXTURES / "parity_session.csv.gz"
 EXPECTED = FIXTURES / "parity_expected.json"
+SPELL_GZ = FIXTURES / "spell_session.csv.gz"
+SPELL_EXPECTED = FIXTURES / "spell_expected.json"
+
+
+def spell_rows() -> tuple[list[str], dict]:
+    rows, meta, _ = make_synthetic_spell.generate(overs=2, seed=5, warmup_s=40)
+    return rows, meta
+
+
+def spell_expected_from(csv_path: Path, meta_path: Path) -> dict:
+    r = analyze(csv_path, meta_path)
+    acts = r["steps"]["actions"]
+    return {
+        "profile": r["profile"]["name"],
+        "placement": r["placement"],
+        "strikes": len(r["steps"]["strikes"]),
+        "deliveries": [{"t_s": round(a.t_s, 3), "peak_g": round(a.peak_g, 4), "runup_strikes": a.runup_strikes}
+                       for a in acts["actions"]],
+        "drift_pct": None if acts["drift"] is None else round(acts["drift"].peak_g_pct, 3),
+    }
 
 
 def fixture_rows() -> tuple[list[str], dict]:
@@ -58,6 +81,18 @@ def main() -> None:
         js.write_text(json.dumps(meta))
         expected = expected_from(csv, js)
     EXPECTED.write_text(json.dumps(expected, indent=2) + "\n")
+
+    rows_s, meta_s = spell_rows()
+    text_s = "\n".join(rows_s) + "\n"
+    with gzip.open(SPELL_GZ, "wt", newline="") as f:
+        f.write(text_s)
+    with tempfile.TemporaryDirectory() as tmp:
+        csv, js = Path(tmp) / "s.csv", Path(tmp) / "s.json"
+        csv.write_text(text_s)
+        js.write_text(json.dumps(meta_s))
+        spell = spell_expected_from(csv, js)
+    SPELL_EXPECTED.write_text(json.dumps(spell, indent=2) + "\n")
+    print(f"wrote {SPELL_GZ} ({len(rows_s) - 1} rows): {len(spell['deliveries'])} deliveries")
     print(f"wrote {CSV_GZ} ({len(rows) - 1} rows) and {EXPECTED}: {len(expected['efforts'])} efforts, "
           f"fatigue on {[i + 1 for i, e in enumerate(expected['efforts']) if e['fatigue']]}")
 

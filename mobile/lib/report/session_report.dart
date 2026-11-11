@@ -49,6 +49,7 @@ class SessionReport {
     this.actions,
     this.actionsLabel,
     this.actionDriftPct,
+    this.actionsCompare = 0,
     this.quality,
     this.hrCoveragePct = 0,
   });
@@ -83,6 +84,9 @@ class SessionReport {
   final List<LiveAction>? actions;
   final String? actionsLabel;
   final double? actionDriftPct;
+
+  /// How many of the first and last actions [actionDriftPct] compares.
+  final int actionsCompare;
   final StreamQuality? quality;
   final double hrCoveragePct;
 
@@ -221,6 +225,7 @@ class SessionReport {
       actions: coach.actions?.actions,
       actionsLabel: coach.actions?.cfg.labelPlural,
       actionDriftPct: coach.actions?.peakDriftPct,
+      actionsCompare: coach.actions?.cfg.compare ?? 0,
       quality: streamQuality(at, ax, ay, az, QualityConfig.fromProfile(profile)),
       hrCoveragePct: wholeSeconds == 0 ? 0 : covered / wholeSeconds * 100,
     );

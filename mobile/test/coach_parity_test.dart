@@ -51,4 +51,42 @@ void main() {
       expect(e.fatigue, w['fatigue'], reason: '$label fatigue flag');
     }
   });
+
+  test('strikes and deliveries match the Python analysis on the bowling spell', () {
+    final expected = jsonDecode(File('test/fixtures/spell_expected.json').readAsStringSync()) as Map<String, dynamic>;
+    final csv = utf8.decode(gzip.decode(File('test/fixtures/spell_session.csv.gz').readAsBytesSync()));
+    final profiles = SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync());
+    final coach = LiveCoach(
+      CoachConfig.fromProfile(profiles.forSport(expected['profile'] as String), expected['placement'] as String?),
+    );
+    var nextTick = 0;
+    for (final line in const LineSplitter().convert(csv).skip(1)) {
+      final f = line.split(',');
+      final t = int.parse(f[0]);
+      while (nextTick <= t) {
+        coach.tick(nextTick);
+        nextTick += 200;
+      }
+      if (f[2] == 'acc') coach.addAcc(t, double.parse(f[3]), double.parse(f[4]), double.parse(f[5]));
+    }
+    coach
+      ..addAcc(nextTick + 1000, 0, 9.81, 0) // let the last strike settle
+      ..finish();
+
+    expect(coach.strikes!.strikes, expected['strikes']);
+    final want = (expected['deliveries'] as List).cast<Map<String, dynamic>>();
+    final got = coach.actions!.actions;
+    expect(got.length, want.length);
+    for (var i = 0; i < want.length; i++) {
+      expect(got[i].tS, closeTo(want[i]['t_s'] as num, 0.002), reason: 'delivery ${i + 1} time');
+      expect(got[i].peakG, closeTo(want[i]['peak_g'] as num, 1e-3), reason: 'delivery ${i + 1} peak');
+      expect(got[i].runupStrikes, want[i]['runup_strikes'], reason: 'delivery ${i + 1} run-up');
+    }
+    final drift = expected['drift_pct'] as num?;
+    if (drift == null) {
+      expect(coach.actions!.peakDriftPct, isNull);
+    } else {
+      expect(coach.actions!.peakDriftPct, closeTo(drift, 0.01));
+    }
+  });
 }

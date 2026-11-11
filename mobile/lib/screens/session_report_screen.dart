@@ -81,6 +81,8 @@ class SessionReportView extends StatelessWidget {
     final sensor = switch (r.motionSource) {
       null => 'No motion',
       'phone' => 'Phone',
+      'xiao' => 'Leg sensor',
+      'apple_watch' => 'Apple Watch',
       final s => prettySlug(s),
     };
     final placement = r.placement == null ? null : prettySlug(r.placement!);
@@ -100,8 +102,8 @@ class SessionReportView extends StatelessWidget {
         const SizedBox(height: 12),
         _TimelineCard(report: r),
         const SizedBox(height: 12),
-        _EffortsCard(report: r),
-        const SizedBox(height: 12),
+        if (r.actions != null) ...[_ActionsCard(report: r), const SizedBox(height: 12)],
+        if (r.actions == null || r.efforts.isNotEmpty) ...[_EffortsCard(report: r), const SizedBox(height: 12)],
         _QualityCard(report: r),
       ],
     );
@@ -117,18 +119,8 @@ class _Tiles extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = report;
     final tiles = [
-      StatTile(label: 'Efforts', value: '${r.efforts.length}', color: AppColors.accent),
-      StatTile(label: 'Load', value: r.load.toStringAsFixed(1), color: AppColors.load),
-      StatTile(label: 'Avg HR', value: r.hrAvg?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
-      StatTile(label: 'Max HR', value: r.hrMax?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
-      if (r.impactLoad != null) StatTile(label: 'Impact load', value: r.impactLoad!.round().toString(), unit: 'g'),
-      if (r.strikes != null) StatTile(label: 'Footstrikes', value: '${r.strikes}'),
       if (r.actions != null)
-        StatTile(
-          label: r.actionsLabel![0].toUpperCase() + r.actionsLabel!.substring(1),
-          value: '${r.actions!.length}',
-          color: AppColors.accent,
-        ),
+        StatTile(label: _capital(r.actionsLabel!), value: '${r.actions!.length}', color: AppColors.accent),
       if (r.actionDriftPct != null)
         StatTile(
           label: 'Landing, last vs first',
@@ -136,6 +128,13 @@ class _Tiles extends StatelessWidget {
           unit: '%',
           color: r.actionDriftPct! <= -10 ? AppColors.warning : null,
         ),
+      if (r.actions == null || r.efforts.isNotEmpty)
+        StatTile(label: 'Efforts', value: '${r.efforts.length}', color: AppColors.accent),
+      StatTile(label: 'Load', value: r.load.toStringAsFixed(1), color: AppColors.load),
+      StatTile(label: 'Avg HR', value: r.hrAvg?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
+      StatTile(label: 'Max HR', value: r.hrMax?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
+      if (r.impactLoad != null) StatTile(label: 'Impact load', value: r.impactLoad!.round().toString(), unit: 'g'),
+      if (r.strikes != null) StatTile(label: 'Footstrikes', value: '${r.strikes}'),
     ];
     return Column(
       children: [
@@ -318,6 +317,87 @@ class _TimelinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TimelinePainter old) => old.r != r;
+}
+
+String _capital(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+/// The profile's actions (e.g. deliveries): how many, whether the late ones landed softer, and each one.
+class _ActionsCard extends StatelessWidget {
+  const _ActionsCard({required this.report});
+
+  final SessionReport report;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = report;
+    final list = r.actions!;
+    final plural = r.actionsLabel!;
+    final drift = r.actionDriftPct;
+    final n = r.actionsCompare;
+    final (color, text) = list.isEmpty
+        ? (AppColors.textFaint, 'No $plural detected')
+        : drift == null
+        ? (AppColors.textFaint, 'Trend after ${2 * n} $plural')
+        : drift <= -10
+        ? (AppColors.warning, 'Last $n landed ${(-drift).round()}% softer than the first $n: fatigue building')
+        : (AppColors.good, 'Landings held up: last $n vs first $n ${drift >= 0 ? '+' : ''}${drift.round()}%');
+    final first = list.take(n).map((a) => a.peakG).toList();
+    final firstMean = first.isEmpty ? null : first.reduce((a, b) => a + b) / first.length;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionLabel(plural, trailing: Text('${list.length}', style: AppText.dim)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(text, style: AppText.body)),
+            ],
+          ),
+          for (final a in list) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.18), shape: BoxShape.circle),
+                  child: Text('${a.number}', style: AppText.label.copyWith(color: AppColors.accent, fontSize: 12)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${_mmss(a.tS)} · landing ${a.peakG.toStringAsFixed(1)} g', style: AppText.body),
+                      Text(
+                        [
+                          'run-up ${a.runupStrikes} strides',
+                          if (a.runupStrideMs != null) '${a.runupStrideMs!.round()} ms',
+                          if (firstMean != null && a.number > n)
+                            '${a.peakG >= firstMean ? '+' : '−'}${((a.peakG / firstMean - 1) * 100).abs().round()}% vs first $n',
+                        ].join(' · '),
+                        style: AppText.dim,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _EffortsCard extends StatelessWidget {
