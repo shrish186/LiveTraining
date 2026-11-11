@@ -37,9 +37,15 @@ int main() {
   assert(fo[0] > 0 && fo[1] > 0);           // direction from the IMU
   lt_fuse_mg(clipped, hi_land, false, fo);   // no high-g sensor: unchanged
   assert(fo[0] == 16000);
-  const float mid[3] = {14000, 0, 0}, hi_mid[3] = {20000, 0, 0};
-  lt_fuse_mg(mid, hi_mid, true, fo);         // half way into the blend
-  assert(fo[0] > 14000 && fo[0] < 20000);
+  const float mid[3] = {13000, 0, 0}, hi_mid[3] = {13400, 0, 0};
+  lt_fuse_mg(mid, hi_mid, true, fo);         // level 13.4 g = 35% into the blend: 35% of the way to the high-g value
+  assert(fabsf(fo[0] - 13140) < 1.0f);
+  const float off_peak[3] = {0, 8000, 0}, hi_peak[3] = {0, 30000, 0};  // IMU sampled beside a 30 g peak
+  lt_fuse_mg(off_peak, hi_peak, true, fo);
+  assert(fabsf(fo[1] - 30000) < 1.0f);
+  const float walk[3] = {300, 2500, 0}, hi_walk[3] = {500, 3000, 0};  // both calm: precise reading kept
+  lt_fuse_mg(walk, hi_walk, true, fo);
+  assert(fo[1] == 2500);
   assert(lt_to_counts(250000.0f, 10) == 25000 && lt_to_counts(500000.0f, 10) == 32767);
   return 0;
 }

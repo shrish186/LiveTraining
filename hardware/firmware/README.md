@@ -6,8 +6,10 @@
 format of [docs/sensor-protocol.md](../../docs/sensor-protocol.md). The app's **Squad** tab connects to it.
 
 The XIAO's own motion sensor stops at ±16 g, and a sprint footstrike already reached 26 g on the watch. The
-ADXL375 (±200 g) fills that in: below 12 g the precise built-in reading is sent as is; from 12 g to 16 g the
-firmware blends towards the ADXL375's magnitude, keeping the built-in sensor's direction. Only the magnitude is
+ADXL375 (±200 g) fills that in. It runs at 400 Hz into its FIFO, and for each 104 Hz sample the firmware takes
+its hardest reading since the previous one, so a 5–10 ms impact peak isn't missed between samples. While both read
+below 12 g the precise built-in reading is sent as is; from 12 g up the firmware moves to the ADXL375's magnitude
+(fully at 16 g), keeping the built-in sensor's direction. Only the magnitude is
 borrowed, so it does not matter which way round the breakout sits in the case. With the ADXL375 the packets carry
 10 mg per count (±327 g); without it the same firmware sends 1 mg per count and simply clips at 16 g.
 
@@ -67,8 +69,9 @@ fusion is wrong.
 - Compiles for the board (121 kB, 14% of flash). **Not yet run on real hardware**: first power-on may need fixes.
 - Without the ADXL375, hard landings clip at 16 g. The firmware counts clipped samples (only when nothing covers
   them) and the app's quality check flags them.
-- The ADXL375 is read once per built-in sample (104 Hz), not at its own 400 Hz. Enough for peak height in our
-  impact metrics; the custom board's single ±320 g IMU removes the second chip altogether.
+- Above 12 g a sample carries the hardest high-g reading of its ~10 ms slot (peak hold), so impact peaks are kept
+  but the waveform between samples is not. Stream rate stays 104 Hz; the custom board's single ±320 g IMU and
+  on-sensor recording at 800+ Hz replace this.
 - No recording to flash, no EMG, no button or vibration motor: those come with the custom board
   (`../DESIGN.md`). Streaming starts as soon as the app subscribes.
 - Battery percentage is a rough estimate from the battery voltage.

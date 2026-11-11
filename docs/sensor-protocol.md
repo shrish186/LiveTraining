@@ -28,7 +28,8 @@ Device name: `LT-xxxx` (last 4 hex digits of the device address), also printed o
 | 12 | n × record | samples, oldest first |
 
 Record: `ax, ay, az` as i16 (× scale = milli-g, gravity included, low-g and high-g ranges already fused on the
-sensor: below 12 g the precise low-g reading, towards 16 g its direction with the high-g sensor's magnitude; see
+sensor: below 12 g the precise low-g reading, above it the low-g direction with the magnitude of the hardest high-g
+reading since the previous sample (peak hold); see
 `lt_fuse_mg` in `hardware/firmware/leg_sensor/packet.h` and `fuse_ranges` in `analysis/ltlib/quality.py`). The prototype
 sends scale 1 without a high-g sensor and 10 with one. With the gyro flag: followed by `gx, gy, gz` as i16 in units of 70 mdps (±2294 °/s).
 

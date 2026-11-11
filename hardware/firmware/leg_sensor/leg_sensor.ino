@@ -78,6 +78,8 @@ static bool imuBegin() {
 #define HIGHG_POWER_CTL 0x2D
 #define HIGHG_DATA_FORMAT 0x31
 #define HIGHG_DATAX0 0x32
+#define HIGHG_FIFO_CTL 0x38
+#define HIGHG_FIFO_STATUS 0x39   // bits 0-5: samples waiting
 #define HIGHG_MG_PER_COUNT 49.0f
 #define SCALE_LOWG 1   // packet mg per count without the high-g sensor (+-32 g fits)
 #define SCALE_HIGHG 10 // with it (+-327 g fits)
@@ -107,7 +109,32 @@ static bool highgBegin() {
   if (!highgRead(HIGHG_DEVID, &id, 1) || id != 0xE5) return false;
   return highgWrite(HIGHG_BW_RATE, 0x0C)        // 400 Hz output, 200 Hz bandwidth: keeps short peaks
          && highgWrite(HIGHG_DATA_FORMAT, 0x0B)  // right-justified, +-200 g (49 mg per count)
+         && highgWrite(HIGHG_FIFO_CTL, 0x80)     // FIFO stream mode: keeps the latest 32 samples
          && highgWrite(HIGHG_POWER_CTL, 0x08);   // measure
+}
+
+// The hardest high-g sample since the last call (about 4 at 400 Hz per 104 Hz IMU sample), in mg.
+static bool highgPeak(float out[3]) {
+  uint8_t status = 0;
+  if (!highgRead(HIGHG_FIFO_STATUS, &status, 1)) return false;
+  uint8_t n = status & 0x3F;
+  if (n == 0) n = 1;  // nothing new: read the latest value again
+  float best = -1;
+  for (uint8_t k = 0; k < n; k++) {
+    uint8_t raw[6];
+    if (!highgRead(HIGHG_DATAX0, raw, sizeof(raw))) return best >= 0;
+    int16_t h[3];
+    memcpy(h, raw, 6);
+    float v[3] = {h[0] * HIGHG_MG_PER_COUNT, h[1] * HIGHG_MG_PER_COUNT, h[2] * HIGHG_MG_PER_COUNT};
+    float m = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    if (m > best) {
+      best = m;
+      out[0] = v[0];
+      out[1] = v[1];
+      out[2] = v[2];
+    }
+  }
+  return true;
 }
 
 // ---- state ------------------------------------------------------------------------------------
@@ -264,7 +291,11 @@ void loop() {
   }
   uint8_t raw[12];
   if (!imuRead(REG_OUTX_L_G, raw, sizeof(raw))) return;
-  if (!streaming || !connected || !streamChar.notifyEnabled(connHandle)) return;
+  if (!streaming || !connected || !streamChar.notifyEnabled(connHandle)) {
+    float drain[3];
+    if (haveHighG) highgPeak(drain);  // keep the FIFO fresh, so the first sample sent isn't an old peak
+    return;
+  }
 
   int16_t g[3], a[3];
   memcpy(g, raw, 6);
@@ -275,16 +306,7 @@ void loop() {
     low[i] = a[i] * ACC_MG_PER_COUNT;
     if (a[i] >= ACC_LIMIT_COUNTS || a[i] <= -ACC_LIMIT_COUNTS) atLimit = true;
   }
-  bool highOk = false;
-  if (haveHighG) {
-    uint8_t hraw[6];
-    if (highgRead(HIGHG_DATAX0, hraw, sizeof(hraw))) {
-      int16_t h[3];
-      memcpy(h, hraw, 6);
-      for (uint8_t i = 0; i < 3; i++) high[i] = h[i] * HIGHG_MG_PER_COUNT;
-      highOk = true;
-    }
-  }
+  bool highOk = haveHighG && highgPeak(high);
   if (atLimit && !highOk) clipped++;  // only a real loss when the high-g sensor can't cover it
   lt_fuse_mg(low, high, highOk, fused);
   uint8_t scale = haveHighG ? SCALE_HIGHG : SCALE_LOWG;
