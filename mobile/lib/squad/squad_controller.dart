@@ -187,6 +187,9 @@ class SquadController extends ChangeNotifier {
     for (final p in players) {
       final r = p.recorder;
       if (r == null) continue;
+      for (final call in p.coach?.finish() ?? const <CoachCall>[]) {
+        r.markEvent(call.eventLabel);
+      }
       await r.stop(
         summary: SessionSummary(
           load: p.stats.load,
@@ -194,6 +197,8 @@ class SquadController extends ChangeNotifier {
           fatigueEfforts: p.fatigueEfforts,
           impactLoad: p.coach?.strikes?.impactLoad,
           strikes: p.coach?.strikes?.strikes,
+          actions: p.coach?.actions?.actions.length,
+          actionsLabel: p.coach?.actions?.cfg.labelPlural,
         ).toJson(),
       );
       p.recorder = null;

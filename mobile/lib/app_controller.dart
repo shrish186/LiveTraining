@@ -330,6 +330,7 @@ class AppController extends ChangeNotifier {
     final r = recorder;
     if (r == null) return;
     final c = coach;
+    _deliver(c?.finish() ?? const []); // an action still waiting to be confirmed
     await r.stop(
       summary: SessionSummary(
         load: stats.load,
@@ -339,6 +340,8 @@ class AppController extends ChangeNotifier {
         hrMax: stats.hrMax,
         impactLoad: c?.strikes?.impactLoad,
         strikes: c?.strikes?.strikes,
+        actions: c?.actions?.actions.length,
+        actionsLabel: c?.actions?.cfg.labelPlural,
       ).toJson(),
     );
     coach = null;

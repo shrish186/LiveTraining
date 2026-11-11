@@ -49,6 +49,9 @@ logic and the sport profiles.
 - Step metrics (footstrikes, impact load, jumps, form drift) live in `analysis/ltlib/steps.py`; the app's
   `mobile/lib/coach/strikes.dart` is its streaming twin. Both read the profile's `steps`/`impact`/`jumps` blocks
   and only run for leg placements listed in `steps.placements`.
+- Repeated big actions at the end of a run-up (cricket deliveries) live in `analysis/ltlib/actions.py`; the app's
+  `mobile/lib/coach/actions.dart` is its streaming twin (fed by `StrikeDetector`). Both read the profile's `actions`
+  block, which also names them. Calls are `call_action` events.
 - Data quality (`analysis/ltlib/quality.py`, app twin `mobile/lib/report/signal_quality.dart`) reads the profile's
   `quality` block. Keep the two in step: their tests use the same cases.
 - The app's session report (`mobile/lib/report/session_report.dart`) replays the CSV through `LiveCoach`, so the

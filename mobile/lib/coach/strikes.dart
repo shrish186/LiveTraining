@@ -20,6 +20,9 @@ class StrikeDetector {
   final double minIntervalS;
   final double weightExponent;
 
+  /// Called with each footstrike once it is decided, in time order (e.g. for [ActionDetector]).
+  void Function(double tS, double g)? onStrike;
+
   int strikes = 0;
   double impactLoad = 0;
   double impactLoadWeighted = 0;
@@ -43,7 +46,10 @@ class StrikeDetector {
       final beaten = _recent.any(
         (q) => !identical(q, p) && (q.t - p.t).abs() < minIntervalS && (q.g > p.g || (q.g == p.g && q.t < p.t)),
       );
-      if (!beaten) _count(p.g);
+      if (!beaten) {
+        _count(p.g);
+        onStrike?.call(p.t, p.g);
+      }
     }
     _recent.removeWhere((p) => p.decided && tS - p.t >= 2 * minIntervalS);
   }

@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import '../coach/actions.dart';
 import '../coach/live_coach.dart';
 import '../coach/profiles.dart';
 import 'signal_quality.dart';
@@ -45,6 +46,9 @@ class SessionReport {
     this.strikes,
     this.impactLoad,
     this.hardestG,
+    this.actions,
+    this.actionsLabel,
+    this.actionDriftPct,
     this.quality,
     this.hrCoveragePct = 0,
   });
@@ -73,6 +77,12 @@ class SessionReport {
   final int? strikes;
   final double? impactLoad;
   final double? hardestG;
+
+  /// The profile's repeated big actions (e.g. deliveries), with their plural name, and the landing
+  /// spike of the last few against the first few (%), when the profile defines them.
+  final List<LiveAction>? actions;
+  final String? actionsLabel;
+  final double? actionDriftPct;
   final StreamQuality? quality;
   final double hrCoveragePct;
 
@@ -208,6 +218,9 @@ class SessionReport {
       strikes: coach.strikes?.strikes,
       impactLoad: coach.strikes?.impactLoad,
       hardestG: coach.strikes?.hardestG,
+      actions: coach.actions?.actions,
+      actionsLabel: coach.actions?.cfg.labelPlural,
+      actionDriftPct: coach.actions?.peakDriftPct,
       quality: streamQuality(at, ax, ay, az, QualityConfig.fromProfile(profile)),
       hrCoveragePct: wholeSeconds == 0 ? 0 : covered / wholeSeconds * 100,
     );

@@ -5,6 +5,8 @@ library;
 
 import 'package:yaml/yaml.dart';
 
+import 'actions.dart';
+
 const baseProfile = 'general';
 
 /// Converts YAML maps/lists into plain Dart maps/lists.
@@ -65,6 +67,7 @@ class CoachConfig {
     this.strikeMinPeakG,
     this.strikeMinIntervalS = 0.35,
     this.impactWeightExponent = 1,
+    this.actions,
   });
 
   factory CoachConfig.fromProfile(Map<String, dynamic> profile, String? placement) {
@@ -93,6 +96,23 @@ class CoachConfig {
       strikeMinPeakG: legWorn ? _num(steps, 'min_peak_g') : null,
       strikeMinIntervalS: legWorn ? _num(steps, 'min_interval_s') : 0.35,
       impactWeightExponent: legWorn ? _num(profile['impact'] as Map<String, dynamic>, 'weight_exponent') : 1,
+      actions: legWorn && profile['actions'] is Map<String, dynamic>
+          ? _actionConfig(profile['actions'] as Map<String, dynamic>, _num(steps, 'max_stride_s'))
+          : null,
+    );
+  }
+
+  static ActionConfig _actionConfig(Map<String, dynamic> a, double maxStrideS) {
+    return ActionConfig(
+      label: a['label'] as String,
+      labelPlural: a['label_plural'] as String,
+      minPeakG: _num(a, 'min_peak_g'),
+      minRatio: _num(a, 'min_ratio'),
+      runupWindowS: _num(a, 'runup_window_s'),
+      minRunupStrikes: _num(a, 'min_runup_strikes').round(),
+      minGapS: _num(a, 'min_gap_s'),
+      maxStrideS: maxStrideS,
+      compare: _num(a, 'compare').round(),
     );
   }
 
@@ -114,4 +134,7 @@ class CoachConfig {
   final double? strikeMinPeakG;
   final double strikeMinIntervalS;
   final double impactWeightExponent;
+
+  /// The profile's repeated big actions (e.g. deliveries), for leg placements only (else null).
+  final ActionConfig? actions;
 }

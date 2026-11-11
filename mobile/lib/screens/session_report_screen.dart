@@ -123,6 +123,19 @@ class _Tiles extends StatelessWidget {
       StatTile(label: 'Max HR', value: r.hrMax?.round().toString() ?? '—', unit: 'bpm', color: AppColors.heart),
       if (r.impactLoad != null) StatTile(label: 'Impact load', value: r.impactLoad!.round().toString(), unit: 'g'),
       if (r.strikes != null) StatTile(label: 'Footstrikes', value: '${r.strikes}'),
+      if (r.actions != null)
+        StatTile(
+          label: r.actionsLabel![0].toUpperCase() + r.actionsLabel!.substring(1),
+          value: '${r.actions!.length}',
+          color: AppColors.accent,
+        ),
+      if (r.actionDriftPct != null)
+        StatTile(
+          label: 'Landing, last vs first',
+          value: '${r.actionDriftPct! >= 0 ? '+' : ''}${r.actionDriftPct!.round()}',
+          unit: '%',
+          color: r.actionDriftPct! <= -10 ? AppColors.warning : null,
+        ),
     ];
     return Column(
       children: [

@@ -12,6 +12,8 @@ class SessionSummary {
     this.hrMax,
     this.impactLoad,
     this.strikes,
+    this.actions,
+    this.actionsLabel,
   });
 
   /// Motion load, (m/s²)·min, as SessionStats.load.
@@ -27,6 +29,10 @@ class SessionSummary {
   final double? impactLoad;
   final int? strikes;
 
+  /// The profile's repeated big actions (e.g. 12 "deliveries"), when it defines them.
+  final int? actions;
+  final String? actionsLabel;
+
   Map<String, dynamic> toJson() => {
     'load': double.parse(load.toStringAsFixed(1)),
     'efforts': efforts,
@@ -35,6 +41,8 @@ class SessionSummary {
     'hr_max': hrMax?.round(),
     if (impactLoad != null) 'impact_load': impactLoad!.round(),
     if (strikes != null) 'strikes': strikes,
+    if (actions != null) 'actions': actions,
+    if (actionsLabel != null) 'actions_label': actionsLabel,
   };
 
   /// Null for sessions recorded before summaries existed (or by another device).
@@ -48,6 +56,8 @@ class SessionSummary {
       hrMax: (j['hr_max'] as num?)?.toDouble(),
       impactLoad: (j['impact_load'] as num?)?.toDouble(),
       strikes: (j['strikes'] as num?)?.toInt(),
+      actions: (j['actions'] as num?)?.toInt(),
+      actionsLabel: j['actions_label'] as String?,
     );
   }
 }

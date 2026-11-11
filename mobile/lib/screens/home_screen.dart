@@ -574,6 +574,7 @@ Color _callColor(CallType t) => switch (t) {
   CallType.readiness => AppColors.accent,
   CallType.warmedUp => AppColors.good,
   CallType.effort => AppColors.load,
+  CallType.action => AppColors.load,
   CallType.fatigue => AppColors.warning,
 };
 

@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from ltlib import core  # noqa: E402
 from ltlib import quality as ql  # noqa: E402
+from ltlib import actions as ac  # noqa: E402
 from ltlib import steps as st  # noqa: E402
 from ltlib.profiles import BASE_PROFILE, effort_params, get_profile, load_profiles  # noqa: E402
 from ltlib.session_io import (  # noqa: E402
@@ -91,7 +92,36 @@ def analyze_steps(profile: dict, placement: str | None, acc, efforts: list[core.
         "jumps": jumps,
         "per_effort": per_effort,
         "drift": st.form_drift(per_effort, profile["drift"]["compare_efforts"]),
+        "actions": analyze_actions(profile, strikes, cfg["max_stride_s"]),
     }
+
+
+def analyze_actions(profile: dict, strikes: list[st.Strike], max_stride_s: float) -> dict | None:
+    """The profile's repeated big actions (e.g. deliveries), if it defines an `actions` block."""
+    a = profile.get("actions")
+    if not a:
+        return None
+    found = ac.detect_actions(strikes, a["min_peak_g"], a["min_ratio"], a["runup_window_s"], a["min_runup_strikes"],
+                              a["min_gap_s"], max_stride_s)
+    return {"label": a["label"], "label_plural": a["label_plural"], "actions": found,
+            "drift": ac.action_drift(found, a["compare"])}
+
+
+def actions_text(r: dict) -> list[str]:
+    found, plural = r["actions"], r["label_plural"]
+    lines = ["", f"{plural.capitalize()}: {len(found)}"]
+    if found:
+        lines.append("  #   time   landing g  run-up strides  run-up stride ms")
+        for i, x in enumerate(found, 1):
+            stride = f"{x.runup_stride_ms:.0f}" if x.runup_stride_ms is not None else "n/a"
+            lines.append(f"  {i:<3} {mmss(x.t_s)}  {x.peak_g:9.1f}  {x.runup_strikes:14d}  {stride:>16}")
+    d = r["drift"]
+    if d:
+        parts = [f"landing {d.peak_g_pct:+.0f}%"]
+        if d.runup_stride_ms is not None:
+            parts.append(f"run-up stride {d.runup_stride_ms:+.0f} ms")
+        lines.append(f"  Drift (last {d.compared} vs first {d.compared} {plural}): " + ", ".join(parts))
+    return lines
 
 
 def steps_text(s: dict) -> list[str]:
@@ -169,6 +199,8 @@ def summary_text(r: dict) -> str:
             lines.append("No fatigue signal: effort peaks and HR recovery held up.")
     if r.get("steps"):
         lines += steps_text(r["steps"])
+        if r["steps"].get("actions"):
+            lines += actions_text(r["steps"]["actions"])
     lines += quality_text(r)
     return "\n".join(lines)
 

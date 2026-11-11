@@ -81,3 +81,24 @@ profiles:
         threshold: 6.5
       waist:
         threshold: 5.0
+
+  cricket:
+    description: Cricket, fast bowling first. Wear the sensor above the ankle of the front (landing) leg.
+    expected_placements: [ankle, shin, thigh, waist]
+    effort:
+      threshold: 5.0
+      min_duration_s: 2.0            # a run-up is 3-6 s
+    placements:
+      ankle:
+        threshold: 9.0               # untuned starting guess
+      shin:
+        threshold: 8.0
+    actions:                         # deliveries: the front-foot landing at the end of the run-up
+      label: delivery
+      label_plural: deliveries
+      min_peak_g: 8.0                # untuned starting guesses: check with validate_session and Mark taps
+      min_ratio: 1.4                 # landing at least this many times the run-up strides' median peak
+      runup_window_s: 6.0
+      min_runup_strikes: 4           # sensor-leg strikes in the run-up window
+      min_gap_s: 15.0                # one delivery per this long at most (walk back to the mark)
+      compare: 6                     # drift: last 6 deliveries vs first 6 (one over)

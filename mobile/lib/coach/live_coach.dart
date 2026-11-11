@@ -7,10 +7,11 @@ library;
 import 'dart:math' as math;
 
 import '../util/motion.dart';
+import 'actions.dart';
 import 'profiles.dart';
 import 'strikes.dart';
 
-enum CallType { readiness, warmedUp, effort, fatigue }
+enum CallType { readiness, warmedUp, effort, action, fatigue }
 
 class CoachCall {
   const CoachCall(this.type, this.tMs, this.title, this.detail);
@@ -25,11 +26,12 @@ class CoachCall {
     CallType.readiness => 'call_readiness',
     CallType.warmedUp => 'call_warmed_up',
     CallType.effort => 'call_effort',
+    CallType.action => 'call_action',
     CallType.fatigue => 'call_fatigue',
   };
 
   /// Calls worth a strong buzz (the athlete may not be looking at the screen).
-  bool get important => type != CallType.effort;
+  bool get important => type != CallType.effort && type != CallType.action;
 }
 
 class LiveEffort {
@@ -57,7 +59,10 @@ class LiveCoach {
               minPeakG: cfg.strikeMinPeakG!,
               minIntervalS: cfg.strikeMinIntervalS,
               weightExponent: cfg.impactWeightExponent,
-            );
+            ),
+      actions = cfg.actions == null ? null : ActionDetector(cfg.actions!) {
+    strikes?.onStrike = actions?.addStrike;
+  }
 
   static const gridHz = 10; // same grid as analysis/ltlib/core.py
   static const _hrMaxGapS = 5.0;
@@ -66,6 +71,11 @@ class LiveCoach {
 
   /// Footstrikes and impact load, when the motion comes from a leg (null otherwise).
   final StrikeDetector? strikes;
+
+  /// The profile's repeated big actions (e.g. deliveries), when it has an `actions` block and the
+  /// motion comes from a leg (null otherwise).
+  final ActionDetector? actions;
+  bool _actionDriftCalled = false;
 
   /// From WHOOP. Without it, warm-up is measured against the lowest HR of the first minute.
   final double? restingHr;
@@ -152,6 +162,7 @@ class LiveCoach {
     _checkWarmup();
     _resolveRecoveries();
     _assessFatigue();
+    _checkActions(actions?.tick(_nowS) ?? const []);
     final out = List<CoachCall>.of(_pending);
     _pending.clear();
     return out;
@@ -191,6 +202,47 @@ class LiveCoach {
           ),
         );
       }
+    }
+  }
+
+  // ---- actions (e.g. deliveries) ------------------------------------------------
+
+  /// Confirms a still-pending action; call when the session stops.
+  List<CoachCall> finish() {
+    _checkActions(actions?.finish() ?? const []);
+    final out = List<CoachCall>.of(_pending);
+    _pending.clear();
+    return out;
+  }
+
+  void _checkActions(List<LiveAction> confirmed) {
+    final det = actions;
+    if (det == null) return;
+    final a = det.cfg;
+    for (final x in confirmed) {
+      final name = a.label[0].toUpperCase() + a.label.substring(1);
+      final stride = x.runupStrideMs == null ? '' : ', stride ${x.runupStrideMs!.round()} ms';
+      _pending.add(
+        CoachCall(
+          CallType.action,
+          (_nowS * 1000).round(),
+          '$name ${x.number} · ${x.peakG.toStringAsFixed(1)} g',
+          'Run-up ${x.runupStrikes} strides$stride.',
+        ),
+      );
+    }
+    final drift = det.peakDriftPct;
+    if (!_actionDriftCalled && drift != null && -drift >= cfg.peakDropPct) {
+      _actionDriftCalled = true;
+      _pending.add(
+        CoachCall(
+          CallType.fatigue,
+          (_nowS * 1000).round(),
+          'Fatigue building',
+          'Your last ${a.compare} ${a.labelPlural} landed ${(-drift).round()}% softer than your first '
+              '${a.compare}. Consider ending the spell.',
+        ),
+      );
     }
   }
 
