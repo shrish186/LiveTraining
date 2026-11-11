@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
@@ -89,15 +90,31 @@ class SensorLink extends ChangeNotifier implements MotionSource {
         )
         .listen((update) {
           if (update.connectionState == DeviceConnectionState.connected) {
-            _listen(
-              ble.subscribeToCharacteristic(
-                QualifiedCharacteristic(serviceId: service, characteristicId: stream, deviceId: sensor.id),
-              ),
-            );
+            _onConnected(ble, service, stream);
           } else if (update.connectionState == DeviceConnectionState.disconnected) {
             _dropped();
           }
         }, onError: (Object _) => _dropped());
+  }
+
+  /// Android starts every connection at a 23-byte MTU, too small for one sensor packet (a 12-byte
+  /// header plus 12 bytes per sample): ask for 247 first, and for a short connection interval so 100+
+  /// samples a second get through. iOS negotiates both by itself.
+  Future<void> _onConnected(FlutterReactiveBle ble, Uuid service, Uuid stream) async {
+    if (Platform.isAndroid) {
+      try {
+        await ble.requestMtu(deviceId: sensor.id, mtu: 247);
+        await ble.requestConnectionPriority(deviceId: sensor.id, priority: ConnectionPriority.highPerformance);
+      } on Object catch (e) {
+        debugPrint('Sensor ${sensor.name}: MTU/priority request failed ($e); packets may not fit');
+      }
+    }
+    if (!_wanted) return;
+    _listen(
+      ble.subscribeToCharacteristic(
+        QualifiedCharacteristic(serviceId: service, characteristicId: stream, deviceId: sensor.id),
+      ),
+    );
   }
 
   void _listen(Stream<List<int>> packets) {

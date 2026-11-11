@@ -172,14 +172,22 @@ static void sendStatus() {
   if (connHandle != BLE_CONN_HANDLE_INVALID) statusChar.notify(connHandle, s, sizeof(s));
 }
 
+// Bytes one notification can carry on this connection (MTU minus the 3-byte ATT header).
+static uint16_t payloadBytes() {
+  if (connHandle == BLE_CONN_HANDLE_INVALID) return 20;
+  return Bluefruit.Connection(connHandle)->getMtu() - 3;
+}
+
 static void flushBatch() {
   if (batchCount == 0 || connHandle == BLE_CONN_HANDLE_INVALID) {
     batchCount = 0;
     return;
   }
   uint8_t out[LT_HEADER_SIZE + MAX_BATCH * LT_RECORD_ACC_GYRO];
-  uint16_t len = lt_build_packet(out, seq, batchFirstMs, SAMPLE_PERIOD_US, haveHighG ? SCALE_HIGHG : SCALE_LOWG, true, batch,
-                                 batchCount);
+  // At a tiny MTU (23 bytes, before the phone asks for more) one acc+gyro sample doesn't fit: send acc only.
+  bool gyro = lt_max_samples(payloadBytes(), true) >= 1;
+  uint16_t len = lt_build_packet(out, seq, batchFirstMs, SAMPLE_PERIOD_US, haveHighG ? SCALE_HIGHG : SCALE_LOWG, gyro,
+                                 batch, batchCount);
   // If the radio queue is full the packet is dropped; the app sees the gap in the sequence numbers.
   streamChar.notify(connHandle, out, len);
   seq++;
@@ -321,7 +329,8 @@ void loop() {
   batchCount++;
 
   // Send ~10 packets per second, or earlier if the negotiated MTU only fits fewer samples.
-  uint8_t fit = lt_max_samples(Bluefruit.Connection(connHandle)->getMtu() - 3, true);
+  uint8_t fit = lt_max_samples(payloadBytes(), true);
+  if (fit == 0) fit = lt_max_samples(payloadBytes(), false);  // acc-only packets (see flushBatch)
   if (fit > MAX_BATCH) fit = MAX_BATCH;
   if (fit == 0) fit = 1;
   if (batchCount >= fit || batchCount >= 10) flushBatch();
