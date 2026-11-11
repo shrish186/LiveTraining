@@ -80,6 +80,26 @@ class _SessionTile extends StatelessWidget {
     ),
   );
 
+  Future<void> _confirmDelete(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete session?'),
+        content: Text(
+          controller.isUploaded(session.id)
+              ? 'Removes it from this phone. The uploaded copy on the server stays.'
+              : 'Removes it from this phone. It has not been uploaded, so it will be gone.',
+          style: AppText.dim,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok ?? false) await controller.deleteSession(session);
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = controller;
@@ -120,42 +140,47 @@ class _SessionTile extends StatelessWidget {
       );
     }
 
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      // Tap a finished session for its report (the Failed pill has its own tap for upload errors).
-      onTap: recordingThis
-          ? null
-          : () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SessionReportScreen(session: s))),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(14)),
-            child: Column(
-              children: [
-                Text(start == null ? '--' : '${start.day}', style: AppText.stat),
-                Text(start == null ? '' : _months[start.month - 1], style: AppText.label.copyWith(fontSize: 9)),
-              ],
+    return GestureDetector(
+      // Long-press a finished session to delete it from the phone.
+      onLongPress: recordingThis ? null : () => _confirmDelete(context),
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        // Tap a finished session for its report (the Failed pill has its own tap for upload errors).
+        onTap: recordingThis
+            ? null
+            : () =>
+                  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SessionReportScreen(session: s))),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(color: AppColors.surfaceHigh, borderRadius: BorderRadius.circular(14)),
+              child: Column(
+                children: [
+                  Text(start == null ? '--' : '${start.day}', style: AppText.stat),
+                  Text(start == null ? '' : _months[start.month - 1], style: AppText.label.copyWith(fontSize: 9)),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.player ?? '${prettySlug(s.sport)} · ${s.sessionType}',
-                  style: AppText.body.copyWith(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 3),
-                Text(details, style: AppText.dim, maxLines: 2, overflow: TextOverflow.ellipsis),
-              ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.player ?? '${prettySlug(s.sport)} · ${s.sessionType}',
+                    style: AppText.body.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(details, style: AppText.dim, maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          trailing,
-        ],
+            const SizedBox(width: 8),
+            trailing,
+          ],
+        ),
       ),
     );
   }

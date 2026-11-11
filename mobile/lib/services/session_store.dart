@@ -27,7 +27,9 @@ class LocalSession {
   DayEntry? get dayEntry {
     final t = startedAt;
     // A squad session is someone else's training, not the phone owner's day.
-    return t == null || player != null ? null : DayEntry(startedAt: t, duration: duration, sport: sport, summary: summary);
+    return t == null || player != null
+        ? null
+        : DayEntry(startedAt: t, duration: duration, sport: sport, summary: summary);
   }
 
   /// True for sessions recorded by the Apple Watch app and received from the watch.
@@ -56,5 +58,12 @@ class SessionStore {
     }
     sessions.sort((a, b) => (b.startedAt ?? DateTime(0)).compareTo(a.startedAt ?? DateTime(0)));
     return sessions;
+  }
+
+  /// Removes a session's CSV and metadata from the phone (not from a server it was uploaded to).
+  static Future<void> delete(LocalSession s) async {
+    for (final f in [s.csv, s.metadataFile]) {
+      if (await f.exists()) await f.delete();
+    }
   }
 }

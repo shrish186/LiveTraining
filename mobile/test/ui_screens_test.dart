@@ -326,6 +326,12 @@ void main() {
   testWidgets('sessions, with this week', (tester) async {
     await _pump(tester, await _controller(withData: true), 'sessions_week', tab: 1);
     expect(find.text('This week'.toUpperCase()), findsOneWidget);
+    await tester.longPress(find.text('Soccer · training').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete session?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete session?'), findsNothing);
   });
 
   testWidgets('trends', (tester) async {

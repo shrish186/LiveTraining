@@ -376,6 +376,13 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deletes a finished session from the phone.
+  Future<void> deleteSession(LocalSession s) async {
+    if (isRecording && recorder?.sessionId == s.id) return;
+    await SessionStore.delete(s);
+    await refreshSessions();
+  }
+
   bool isUploaded(String id) => settings.uploadedSessionIds.contains(id);
 
   Future<void> upload(LocalSession s) async {

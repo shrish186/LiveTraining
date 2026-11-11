@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Live Training connects to your WHOOP Heart Rate Broadcast to record heart rate during training.</string>
+	<string>Live Training connects to your heart-rate broadcast (e.g. WHOOP) and to Live Training leg sensors to record heart rate and motion during training.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Live Training records your phone's motion sensors during training sessions.</string>
 	<key>NSLocalNetworkUsageDescription</key>
@@ -31,6 +31,12 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>bluetooth-central</string>
+	</array>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
