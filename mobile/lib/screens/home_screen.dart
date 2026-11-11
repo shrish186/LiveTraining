@@ -352,12 +352,15 @@ class _MiniRing extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: AppText.section.copyWith(fontSize: 12.5)),
-              const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textDim),
-            ],
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: AppText.section.copyWith(fontSize: 12.5)),
+                const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textDim),
+              ],
+            ),
           ),
         ],
       ),
