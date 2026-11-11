@@ -35,6 +35,10 @@ class SquadPlayer {
   int get efforts => coach?.efforts.length ?? 0;
   int get fatigueEfforts => coach?.efforts.where((e) => e.fatigue).length ?? 0;
   double? get impactLoad => coach?.strikes?.impactLoad;
+
+  /// The profile's actions so far (e.g. deliveries), when it defines them and the sensor is on a leg.
+  int? get actions => coach?.actions?.actions.length;
+  String? get actionsLabel => coach?.actions?.cfg.labelPlural;
 }
 
 /// A net session for several players on one phone. Each player with a sensor gets a normal session

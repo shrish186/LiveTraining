@@ -279,6 +279,7 @@ void main() {
       final a = StreamController<List<int>>(), b = StreamController<List<int>>();
       await squad.assign(squad.players[0], SensorLink(const FoundSensor('A', 'LT-3F2A'), packets: a.stream));
       await squad.assign(squad.players[1], SensorLink(const FoundSensor('B', 'LT-91C4'), packets: b.stream));
+      squad.setSetup(sport: 'cricket'); // fast bowlers: each card counts deliveries
       await squad.start();
       for (var k = 0; k < 20; k++) {
         a.add(packet(k, 2600));
@@ -306,6 +307,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(tester.takeException(), isNull);
     expect(find.text('Arjun'), findsOneWidget);
+    expect(find.text('DELIVERIES'), findsNWidgets(2)); // the two players with a sensor
     expect(find.text('No sensor'), findsOneWidget);
     final dir2 = _previewDir;
     if (dir2 != null) {

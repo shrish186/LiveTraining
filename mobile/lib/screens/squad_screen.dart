@@ -274,7 +274,9 @@ class _PlayerCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: _Stat(label: 'Efforts', value: '${p.efforts}'),
+                  child: p.actions != null
+                      ? _Stat(label: _capitalized(p.actionsLabel!), value: '${p.actions}')
+                      : _Stat(label: 'Efforts', value: '${p.efforts}'),
                 ),
                 Expanded(
                   child: _Stat(label: 'Impact', value: p.impactLoad?.round().toString() ?? '—'),
@@ -324,3 +326,5 @@ class _Stat extends StatelessWidget {
     );
   }
 }
+
+String _capitalized(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);

@@ -97,6 +97,14 @@ class DaySummary {
   }
 
   int get efforts => entries.fold(0, (sum, e) => sum + (e.summary?.efforts ?? 0));
+
+  /// The profile's actions today (e.g. deliveries), with their name; null when no session counted any.
+  int? get actions {
+    final v = entries.map((e) => e.summary?.actions).whereType<int>();
+    return v.isEmpty ? null : v.reduce((a, b) => a + b);
+  }
+
+  String? get actionsLabel => entries.map((e) => e.summary?.actionsLabel).whereType<String>().lastOrNull;
   int get fatigueEfforts => entries.fold(0, (sum, e) => sum + (e.summary?.fatigueEfforts ?? 0));
 
   double? get hrMax {

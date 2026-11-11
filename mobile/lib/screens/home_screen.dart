@@ -274,6 +274,14 @@ class _TodayCard extends StatelessWidget {
                       const SizedBox(height: 14),
                       _MiniStat(label: 'Impact load', value: day.impactLoad!.round().toString(), unit: 'g'),
                     ],
+                    if (day.actions != null && day.actionsLabel != null) ...[
+                      const SizedBox(height: 14),
+                      _MiniStat(
+                        label: day.actionsLabel![0].toUpperCase() + day.actionsLabel!.substring(1),
+                        value: '${day.actions}',
+                        unit: '',
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -594,6 +602,9 @@ class _CoachCard extends StatelessWidget {
         ? (target == null ? 'Warm-up' : 'Warm-up · HR ${target.round()}+')
         : coach.inEffort
         ? 'In effort'
+        : coach.actions != null
+        ? '${coach.actions!.cfg.labelPlural[0].toUpperCase()}${coach.actions!.cfg.labelPlural.substring(1)}: '
+              '${coach.actions!.actions.length}'
         : 'Efforts: ${coach.efforts.length}';
     final earlier = calls.reversed.skip(1).take(3).toList();
     return AppCard(

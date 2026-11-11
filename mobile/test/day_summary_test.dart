@@ -55,4 +55,19 @@ void main() {
     expect(SessionSummary.fromJson(null), isNull);
     expect(SessionSummary.fromJson('nonsense'), isNull);
   });
+
+  test('actions (e.g. deliveries) add up and survive the JSON round trip', () {
+    const bowl = SessionSummary(load: 20, efforts: 8, fatigueEfforts: 0, actions: 36, actionsLabel: 'deliveries');
+    final back = SessionSummary.fromJson(bowl.toJson())!;
+    expect(back.actions, 36);
+    expect(back.actionsLabel, 'deliveries');
+    final d = DaySummary.of([
+      entry(DateTime(2026, 10, 27, 9), summary: back),
+      entry(DateTime(2026, 10, 27, 16), summary: bowl),
+      entry(DateTime(2026, 10, 27, 18), summary: const SessionSummary(load: 5, efforts: 1, fatigueEfforts: 0)),
+    ], day);
+    expect(d.actions, 72);
+    expect(d.actionsLabel, 'deliveries');
+    expect(DaySummary.of([entry(DateTime(2026, 10, 27, 9))], day).actions, isNull);
+  });
 }
