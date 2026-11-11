@@ -157,9 +157,10 @@ class _BarsPainter extends CustomPainter {
 
 /// Four weeks of training: daily load, this week against the athlete's own average, weekly totals.
 class TrendsScreen extends StatelessWidget {
-  const TrendsScreen({super.key, required this.trends, this.onAskCoach});
+  const TrendsScreen({super.key, required this.trends, this.onAskCoach, this.title = 'Trends'});
 
   final Trends trends;
+  final String title;
   final VoidCallback? onAskCoach;
 
   @override
@@ -182,7 +183,7 @@ class TrendsScreen extends StatelessWidget {
     ];
     final advice = adviceForWeek(t);
     return Scaffold(
-      appBar: AppBar(title: const Text('Trends')),
+      appBar: AppBar(title: Text(title)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [

@@ -68,6 +68,8 @@ logic and the sport profiles.
 - Advice (`mobile/lib/coach/advice.dart`) is rule-based, from the report and trends only (no second analysis path).
   The AI coach sends `coach_context.dart`'s compact JSON to `POST /coach/ask` (`backend/app/coach_ai.py`, Claude); the
   API key lives only in `backend/.env`. Both follow the wording rule: no injury prediction, no medical claims.
+- The coach's squad overview (`mobile/lib/squad/squad_overview.dart`, Squad tab) reads only the players' saved session
+  summaries: this week vs each player's usual week, last session held up or faded, soft start. Same wording rule.
 - Live calls are written to the session as `call_*` events. Accuracy is checked with
   `analysis/validate_session.py` against the athlete's `mark` events.
 - WHOOP token refresh invalidates the old access and refresh tokens. Always persist the new refresh

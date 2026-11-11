@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../app_controller.dart';
 import '../config.dart';
 import '../coach/live_coach.dart';
 import '../sources/sensor_link.dart';
@@ -10,6 +11,7 @@ import '../squad/squad_controller.dart';
 import '../ui/theme.dart';
 import '../ui/widgets.dart';
 import 'sensor_picker.dart';
+import 'squad_overview_card.dart';
 
 String _clock(Duration d) =>
     '${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
@@ -17,9 +19,12 @@ String _clock(Duration d) =>
 /// A net session for several players on one phone: give each player a sensor, start, and watch
 /// every player's efforts, impact load and fatigue live.
 class SquadScreen extends StatelessWidget {
-  const SquadScreen({super.key, required this.squad, this.scanner});
+  const SquadScreen({super.key, required this.squad, this.scanner, this.controller});
 
   final SquadController squad;
+
+  /// For the coach's overview of the players' saved sessions (null: no overview).
+  final AppController? controller;
   final SensorScanner? scanner;
 
   Future<void> _addPlayer(BuildContext context) async {
@@ -73,6 +78,10 @@ class SquadScreen extends StatelessWidget {
                   : '${squad.players.length} player${squad.players.length == 1 ? '' : 's'} · ${squad.ready} sensor${squad.ready == 1 ? '' : 's'} live',
               title: 'Squad',
             ),
+            if (!recording && controller != null) ...[
+              SquadOverviewCard(controller: controller!),
+              const SizedBox(height: 16),
+            ],
             if (squad.players.isEmpty)
               const AppCard(
                 child: Column(
@@ -143,7 +152,13 @@ class SquadScreen extends StatelessWidget {
                 label: Text(withSensor == 0 ? 'Give a player a sensor to start' : 'Start squad session ($withSensor)'),
               ),
             ] else ...[
-              HoldToConfirmButton(label: 'Hold to stop', onConfirmed: squad.stop),
+              HoldToConfirmButton(
+                label: 'Hold to stop',
+                onConfirmed: () async {
+                  await squad.stop();
+                  await controller?.refreshSessions(); // the overview picks up the new sessions
+                },
+              ),
               const SizedBox(height: 8),
               const Center(child: Text('Keep the app open while recording', style: AppText.dim)),
             ],

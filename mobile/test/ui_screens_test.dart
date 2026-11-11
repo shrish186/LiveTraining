@@ -476,6 +476,84 @@ void main() {
     }
   });
 
+  testWidgets('squad, coach overview', (tester) async {
+    SharedPreferences.setMockInitialValues({
+      'squad_players': ['Arjun', 'Sam', 'Dev', 'Ravi'],
+    });
+    final settings = await SettingsStore.load();
+    final c = AppController(settings, motionSource: _NoMotion(), hrSource: WhoopHrSource());
+    final now = DateTime.now();
+    LocalSession bowl(String who, int daysAgo, int deliveries, {double first = 17, double last = 16.6}) {
+      final at = DateTime(now.year, now.month, now.day - daysAgo, 9);
+      return LocalSession('$who-$daysAgo', File('x.csv'), File('x.json'), {
+        'session_id': '$who-$daysAgo',
+        'sport': 'cricket',
+        'session_type': 'training',
+        'player': who,
+        'started_at': at.toUtc().toIso8601String(),
+        'duration_ms': 60 * 60000,
+        'summary': {
+          'load': 10,
+          'efforts': 0,
+          'fatigue_efforts': 0,
+          'actions': deliveries,
+          'actions_label': 'deliveries',
+          'first_action_g': first,
+          'last_action_g': last,
+        },
+      });
+    }
+
+    c.sessions = [
+      for (final d in [24, 22, 17, 15, 10, 8]) bowl('Arjun', d, 18),
+      bowl('Arjun', 2, 30),
+      bowl('Arjun', 0, 30, last: 14),
+      for (final d in [24, 22, 17, 15, 10, 8, 2, 0]) bowl('Sam', d, 18),
+      for (final d in [24, 17, 10]) bowl('Dev', d, 18),
+      bowl('Dev', 1, 18, first: 15),
+      bowl('Ravi', 12, 24),
+    ];
+    final squad = SquadController(
+      settings,
+      directory: () async => Directory.systemTemp,
+      profiles: SportProfiles.parse(File('assets/sport_profiles.yaml').readAsStringSync()),
+    );
+    tester.view.physicalSize = const Size(1170, 2532 * 1.3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: key,
+        child: MaterialApp(
+          theme: buildTheme(),
+          debugShowCheckedModeBanner: false,
+          home: Scaffold(
+            body: SafeArea(
+              child: SquadScreen(squad: squad, controller: c),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(tester.takeException(), isNull);
+    expect(find.text('2 need a look'), findsOneWidget);
+    expect(find.text('60 deliveries vs ~36 usual'), findsOneWidget);
+    final dir = _previewDir;
+    if (dir != null) {
+      await tester.runAsync(() async {
+        final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final png = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$dir/squad_overview.png').writeAsBytesSync(png!.buffer.asUint8List());
+      });
+    }
+    await tester.tap(find.text('Arjun').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Arjun'), findsWidgets); // the player's own trends screen
+  });
+
   testWidgets('squad, recording', (tester) async {
     SharedPreferences.setMockInitialValues({
       'squad_players': ['Arjun', 'Sam', 'Dev'],

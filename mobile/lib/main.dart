@@ -83,7 +83,7 @@ class _ShellState extends State<_Shell> {
           children: [
             HomeScreen(controller: c, onOpenSettings: () => _go(_settingsTab)),
             SessionsScreen(controller: c),
-            if (widget.squad != null) SquadScreen(squad: widget.squad!),
+            if (widget.squad != null) SquadScreen(squad: widget.squad!, controller: c),
             SettingsScreen(controller: c),
           ],
         ),

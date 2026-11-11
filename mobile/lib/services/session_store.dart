@@ -32,6 +32,12 @@ class LocalSession {
         : DayEntry(startedAt: t, duration: duration, sport: sport, summary: summary);
   }
 
+  /// This session as a day entry whoever it was for (squad sessions included), for the coach's overview.
+  DayEntry? get anyEntry {
+    final t = startedAt;
+    return t == null ? null : DayEntry(startedAt: t, duration: duration, sport: sport, summary: summary);
+  }
+
   /// True for sessions recorded by the Apple Watch app and received from the watch.
   /// True for sessions with data from our leg sensor.
   bool get fromSensor => (metadata['sources'] as List? ?? const []).any((s) => s is Map && s['id'] == 'xiao');
